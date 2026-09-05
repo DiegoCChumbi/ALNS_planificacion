@@ -2,6 +2,7 @@ package com.paqrap;
 
 import com.paqrap.modelo.*;
 import com.paqrap.solucionador.*;
+import com.paqrap.simulador.*;
 import java.util.*;
 
 public class Main {
@@ -50,6 +51,21 @@ public class Main {
         for (EstadoVehiculo ev : flotaInicial) contextoInicial.agregarVehiculo(ev);
         for (Pedido p : pedidosIniciales) contextoInicial.agregarPedido(p);
 
+        // Inicializar Gestor de Log y Motor de Simulación
+        GestorLogSimulacion gestorLog = new GestorLogSimulacion("logs", false);
+        MotorSimulacion motorSimulacion = new MotorSimulacion(mapa, gestorLog);
+
+        gestorLog.registrarEvento(new EventoSimulacion(
+                0.0,
+                TipoEvento.INICIO_SIMULACION,
+                null,
+                null,
+                10,
+                10,
+                "Inicio de la Simulación de Operaciones PaqRap (Turno Mañana: 07:00:00)",
+                "Almacén Central en (10,10) | Flota inicial: 6 vehículos"
+        ));
+
         // Configuración del Solucionador ALNS
         ConfiguracionALNS configuracion = new ConfiguracionALNS();
         configuracion.setMaxIteraciones(300);
@@ -69,6 +85,10 @@ public class Main {
 
         imprimirSolucion(solucionInicial, (tiempoFin - tiempoInicio));
 
+        // Simular movimientos de la planificación inicial hasta t = 2.0h
+        System.out.println("\n>> [Simulador] Registrando movimientos y estados en cuadrícula (t=0.0h a t=2.0h)...");
+        motorSimulacion.simularRutas(solucionInicial, 0.0, 2.0);
+
         // ---------------------------------------------------------
         // 2. ESCENARIO DE REPLANIFICACIÓN DINÁMICA (t = 2.0h)
         // ---------------------------------------------------------
@@ -78,8 +98,13 @@ public class Main {
         System.out.println(">> Incidencia Detectada: Tramo de calle (10,10) a (11,10) está BLOQUEADO.");
         System.out.println(">> Nuevos Pedidos Exprés Llegados: Ped-11 (plazo 4h), Ped-12 (plazo 8h).");
 
-        // Bloquear tramo de calle en la cuadrícula
-        mapa.bloquearArista(10, 10, 11, 10);
+        // Registrar incidencias en el motor y mapa
+        motorSimulacion.registrarBloqueoCalle(2.0, 10, 10, 11, 10);
+        Pedido p11 = new Pedido("Ped-11-EXPRES", new NodoCuadricula("C11", 13, 10, TipoNodo.CLIENTE), 3, 2.0, 4.0);
+        Pedido p12 = new Pedido("Ped-12-EXPRES", new NodoCuadricula("C12", 7, 7, TipoNodo.CLIENTE), 2, 2.0, 8.0);
+        motorSimulacion.registrarNuevoPedido(2.0, p11);
+        motorSimulacion.registrarNuevoPedido(2.0, p12);
+        gestorLog.registrarEstado(2.0, "Incidencias registradas a las 09:00:00 (t=2.0h)", "Calle (10,10)-(11,10) bloqueada | 2 nuevos pedidos exprés");
 
         // Posiciones actualizadas de los vehículos en t = 2.0h
         List<EstadoVehiculo> flotaActualizada = new ArrayList<>();
@@ -103,8 +128,8 @@ public class Main {
                 contextoReplan.agregarPedido(p);
             }
         }
-        contextoReplan.agregarPedido(new Pedido("Ped-11-EXPRES", new NodoCuadricula("C11", 13, 10, TipoNodo.CLIENTE), 3, 2.0, 4.0));
-        contextoReplan.agregarPedido(new Pedido("Ped-12-EXPRES", new NodoCuadricula("C12", 7, 7, TipoNodo.CLIENTE), 2, 2.0, 8.0));
+        contextoReplan.agregarPedido(p11);
+        contextoReplan.agregarPedido(p12);
 
         tiempoInicio = System.currentTimeMillis();
         Solucion solucionReplan = solucionador.resolver(contextoReplan);
@@ -112,8 +137,19 @@ public class Main {
 
         imprimirSolucion(solucionReplan, (tiempoFin - tiempoInicio));
 
+        // Simular movimientos de las rutas replanificadas hasta término
+        System.out.println("\n>> [Simulador] Registrando movimientos tras replanificación (t=2.0h en adelante)...");
+        motorSimulacion.simularRutas(solucionReplan, 2.0, 12.0);
+
+        motorSimulacion.registrarFinSimulacion(12.0, String.format(Locale.US, "Costo Final: S/ %.2f | Entregas completadas", solucionReplan.calcularCostoTotal()));
+
         System.out.println("\n=========================================================");
-        System.out.println("   ¡Ejecución de ALNS y Replanificación Completada!      ");
+        System.out.println("   ¡Simulación y Generación de Logs Completada!         ");
+        System.out.println("=========================================================");
+        System.out.println(">> Archivos de Log generados:");
+        System.out.println("   • Texto Legible  : " + gestorLog.getArchivoLogTexto().getPath());
+        System.out.println("   • JSON Estructura: " + gestorLog.getArchivoLogJson().getPath());
+        System.out.println("   • Total Eventos  : " + gestorLog.getEventos().size());
         System.out.println("=========================================================");
     }
 
