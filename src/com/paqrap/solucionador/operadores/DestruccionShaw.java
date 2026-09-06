@@ -6,6 +6,17 @@ import com.paqrap.modelo.*;
 import java.util.*;
 
 public class DestruccionShaw implements OperadorDestruccion {
+    private final double pesoDistancia;
+    private final double pesoTiempo;
+
+    public DestruccionShaw(double pesoDistancia, double pesoTiempo) {
+        this.pesoDistancia = pesoDistancia;
+        this.pesoTiempo = pesoTiempo;
+    }
+
+    public DestruccionShaw() {
+        this(1.0, 2.0);
+    }
 
     @Override
     public String getNombre() {
@@ -36,7 +47,7 @@ public class DestruccionShaw implements OperadorDestruccion {
             for (Pedido p : todosAsignados) {
                 double dist = CalculadorDistancia.getDistancia(contexto.getMapa(), referencia.getDestino(), p.getDestino());
                 double difPlazo = Math.abs(referencia.getPlazoHoras() - p.getPlazoHoras());
-                double relacion = dist * 1.0 + difPlazo * 2.0;
+                double relacion = dist * pesoDistancia + difPlazo * pesoTiempo;
 
                 if (relacion < menorRelacion) {
                     menorRelacion = relacion;
@@ -55,7 +66,7 @@ public class DestruccionShaw implements OperadorDestruccion {
         for (Pedido p : removidos) {
             for (Ruta r : solucion.getRutas()) {
                 if (r.getPedidosAsignados().remove(p)) {
-                    EvaluadorCostos.recalculareRuta(r, contexto.getMapa());
+                    EvaluadorCostos.recalculareRuta(r, contexto.getMapa(), contexto.getConfiguracionOperacion());
                     break;
                 }
             }

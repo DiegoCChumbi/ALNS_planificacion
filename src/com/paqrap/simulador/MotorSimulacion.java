@@ -1,5 +1,6 @@
 package com.paqrap.simulador;
 
+import com.paqrap.configuracion.ConfiguracionSistema;
 import com.paqrap.evaluador.CalculadorDistancia;
 import com.paqrap.modelo.*;
 import java.util.*;
@@ -7,18 +8,27 @@ import java.util.*;
 public class MotorSimulacion {
     private final MapaCuadricula mapa;
     private final GestorLogSimulacion gestorLog;
+    private final ConfiguracionSistema configuracion;
+    private final Map<String, EstadoVehiculo> estadosVehiculos;
+    private final Set<String> pedidosCompletados;
 
-    public MotorSimulacion(MapaCuadricula mapa, GestorLogSimulacion gestorLog) {
+    public MotorSimulacion(MapaCuadricula mapa, GestorLogSimulacion gestorLog, ConfiguracionSistema configuracion) {
         this.mapa = mapa;
         this.gestorLog = gestorLog;
+        this.configuracion = (configuracion != null) ? configuracion : new ConfiguracionSistema();
+        this.estadosVehiculos = new HashMap<>();
+        this.pedidosCompletados = new HashSet<>();
     }
 
-    /**
-     * Simula la ejecución de un conjunto de rutas desde un tiempo inicial hasta un tiempo límite o fin de rutas.
-     * Genera eventos cronológicos micro (calle por calle) y macro (paradas, entregas, estados).
-     */
+    public MotorSimulacion(MapaCuadricula mapa, GestorLogSimulacion gestorLog) {
+        this(mapa, gestorLog, new ConfiguracionSistema());
+    }
+
     public List<EventoSimulacion> simularRutas(Solucion solucion, double tiempoInicio, double tiempoFinMax) {
         List<EventoSimulacion> eventosFase = new ArrayList<>();
+        double horaBase = configuracion.getOperacion().getHoraInicioTurno();
+        double kmPorCuadra = configuracion.getEntorno().getKmPorCuadra();
+        double tiempoServicio = configuracion.getOperacion().getTiempoServicioClienteHoras();
 
         int totalPedidos = 0;
         for (Ruta r : solucion.getRutas()) {
@@ -27,13 +37,16 @@ public class MotorSimulacion {
 
         eventosFase.add(new EventoSimulacion(
                 tiempoInicio,
+                horaBase,
                 TipoEvento.PLANIFICACION_RUTAS,
                 null,
                 null,
                 -1,
                 -1,
                 "Rutas planificadas activadas (" + solucion.getRutas().size() + " vehículos, " + totalPedidos + " pedidos asignados)",
-                String.format(Locale.US, "Costo estimado: S/ %.2f | No asignados: %d", solucion.calcularCostoTotal(), solucion.getPedidosNoAsignados().size())
+                String.format(Locale.US, "Costo estimado: S/ %.2f | No asignados: %d",
+                        solucion.calcularCostoTotal(configuracion.getOperacion().getPenalizacionPedidoNoAsignado()),
+                        solucion.getPedidosNoAsignados().size())
         ));
 
         for (Ruta ruta : solucion.getRutas()) {
@@ -55,6 +68,7 @@ public class MotorSimulacion {
 
             eventosFase.add(new EventoSimulacion(
                     tiempoActual,
+                    horaBase,
                     TipoEvento.DESPACHO_VEHICULO,
                     vehiculo.getId(),
                     null,
@@ -64,7 +78,45 @@ public class MotorSimulacion {
                     String.format("Carga: %d/%d paq. | Vel: %.0f km/h", cargaActual, tipoVehiculo.getCapacidad(), velocidad)
             ));
 
+            double duracionRefrigerio = configuracion.getOperacion().getDuracionRefrigerioHoras();
+            double tiempoInicioRefrigerio = configuracion.getOperacion().getDuracionTurnoHoras() / 2.0;
+            boolean refrigerioTomado = vehiculo.isRefrigerioTomado();
+
             for (Pedido pedido : ruta.getPedidosAsignados()) {
+                if (tiempoActual >= tiempoFinMax) break;
+
+                // Pausa obligatoria de refrigerio si llega la hora del almuerzo antes del viaje
+                if (!refrigerioTomado && tiempoActual >= tiempoInicioRefrigerio && tiempoActual < tiempoFinMax) {
+                    double tInicioRef = tiempoActual;
+                    double tFinRef = Math.min(tInicioRef + duracionRefrigerio, tiempoFinMax);
+                    eventosFase.add(new EventoSimulacion(
+                            tInicioRef,
+                            horaBase,
+                            TipoEvento.INICIO_REFRIGERIO,
+                            vehiculo.getId(),
+                            null,
+                            nodoActual.getX(),
+                            nodoActual.getY(),
+                            String.format("Conductor de %s inicia pausa obligatoria de refrigerio (%.1fh)", vehiculo.getId(), duracionRefrigerio),
+                            String.format("Pausa en (%d,%d) | Turno: %02d:00", nodoActual.getX(), nodoActual.getY(), (int) horaBase)
+                    ));
+                    tiempoActual = tFinRef;
+                    if (tInicioRef + duracionRefrigerio <= tiempoFinMax) {
+                        refrigerioTomado = true;
+                        eventosFase.add(new EventoSimulacion(
+                                tiempoActual,
+                                horaBase,
+                                TipoEvento.FIN_REFRIGERIO,
+                                vehiculo.getId(),
+                                null,
+                                nodoActual.getX(),
+                                nodoActual.getY(),
+                                String.format("Conductor de %s finaliza refrigerio y reanuda operaciones", vehiculo.getId()),
+                                String.format("Tiempo reanudación: t=%.2fh", tiempoActual)
+                        ));
+                    }
+                }
+
                 if (tiempoActual >= tiempoFinMax) break;
 
                 NodoCuadricula destino = pedido.getDestino();
@@ -75,7 +127,7 @@ public class MotorSimulacion {
                     NodoCuadricula origenPaso = camino.get(i);
                     NodoCuadricula destinoPaso = camino.get(i + 1);
 
-                    double distPaso = 1.0; // En cuadrícula, cada salto entre esquinas contiguas es 1 km
+                    double distPaso = kmPorCuadra;
                     double tiempoPaso = distPaso / velocidad;
 
                     tiempoActual += tiempoPaso;
@@ -90,6 +142,7 @@ public class MotorSimulacion {
 
                     eventosFase.add(new EventoSimulacion(
                             tiempoActual,
+                            horaBase,
                             TipoEvento.MOVIMIENTO_TRAMO,
                             vehiculo.getId(),
                             pedido.getId(),
@@ -111,6 +164,7 @@ public class MotorSimulacion {
                 // Llegada a cliente
                 eventosFase.add(new EventoSimulacion(
                         tiempoActual,
+                        horaBase,
                         TipoEvento.LLEGADA_A_DESTINO,
                         vehiculo.getId(),
                         pedido.getId(),
@@ -120,40 +174,147 @@ public class MotorSimulacion {
                         String.format(Locale.US, "Pedido: %s | Demanda: %d", pedido.getId(), pedido.getCantidad())
                 ));
 
-                // Inicio servicio (1 hora de atención)
+                // Inicio servicio
                 eventosFase.add(new EventoSimulacion(
                         tiempoActual,
+                        horaBase,
                         TipoEvento.INICIO_SERVICIO,
                         vehiculo.getId(),
                         pedido.getId(),
                         destino.getX(),
                         destino.getY(),
                         String.format("Inicia entrega y descarga de pedido %s", pedido.getId()),
-                        "Duración de servicio estimada: 1.00h"
+                        String.format(Locale.US, "Duración de servicio: %.2fh", tiempoServicio)
                 ));
 
-                double tiempoFinServicio = tiempoActual + 1.0;
+                double tiempoFinServicio = tiempoActual + tiempoServicio;
                 boolean aTiempo = (tiempoActual <= pedido.getTiempoMaximoEntrega());
                 double holgura = pedido.getTiempoMaximoEntrega() - tiempoActual;
+                String colorSemaforo = configuracion.getSemaforos().determinarColor(holgura);
 
                 tiempoActual = Math.min(tiempoFinServicio, tiempoFinMax);
                 cargaActual -= pedido.getCantidad();
 
+                if (tiempoFinServicio <= tiempoFinMax) {
+                    pedidosCompletados.add(pedido.getId());
+                }
+
                 eventosFase.add(new EventoSimulacion(
                         tiempoActual,
+                        horaBase,
                         TipoEvento.FIN_SERVICIO_ENTREGA,
                         vehiculo.getId(),
                         pedido.getId(),
                         destino.getX(),
                         destino.getY(),
-                        String.format("Finalizó entrega de %s | Estado: %s (Plazo límite: %.1fh, Margen: %+.2fh)",
-                                pedido.getId(), aTiempo ? "A TIEMPO (CUMPLE)" : "TARDÍO (DEMORA)", pedido.getTiempoMaximoEntrega(), holgura),
+                        String.format("Finalizó entrega de %s | Estado: %s [Semáforo: %s] (Plazo límite: %.1fh, Margen: %+.2fh)",
+                                pedido.getId(), aTiempo ? "A TIEMPO (CUMPLE)" : "TARDÍO (DEMORA)", colorSemaforo, pedido.getTiempoMaximoEntrega(), holgura),
                         String.format("Carga remanente en vehículo: %d/%d paq.", cargaActual, tipoVehiculo.getCapacidad())
                 ));
             }
+
+            // Retorno al almacén base si ya entregó todos sus pedidos
+            NodoCuadricula base = vehiculo.getAlmacenBase();
+            if (base != null && !nodoActual.equals(base) && cargaActual == 0 && tiempoActual < tiempoFinMax) {
+                // Pausa de refrigerio en camino si no se tomó aún
+                if (!refrigerioTomado && tiempoActual >= tiempoInicioRefrigerio && tiempoActual < tiempoFinMax) {
+                    double tInicioRef = tiempoActual;
+                    double tFinRef = Math.min(tInicioRef + duracionRefrigerio, tiempoFinMax);
+                    eventosFase.add(new EventoSimulacion(
+                            tInicioRef,
+                            horaBase,
+                            TipoEvento.INICIO_REFRIGERIO,
+                            vehiculo.getId(),
+                            null,
+                            nodoActual.getX(),
+                            nodoActual.getY(),
+                            String.format("Conductor de %s inicia pausa obligatoria de refrigerio (%.1fh)", vehiculo.getId(), duracionRefrigerio),
+                            String.format("Pausa en (%d,%d) previa al retorno a base", nodoActual.getX(), nodoActual.getY())
+                    ));
+                    tiempoActual = tFinRef;
+                    if (tInicioRef + duracionRefrigerio <= tiempoFinMax) {
+                        refrigerioTomado = true;
+                        eventosFase.add(new EventoSimulacion(
+                                tiempoActual,
+                                horaBase,
+                                TipoEvento.FIN_REFRIGERIO,
+                                vehiculo.getId(),
+                                null,
+                                nodoActual.getX(),
+                                nodoActual.getY(),
+                                String.format("Conductor de %s finaliza refrigerio y reanuda retorno a base", vehiculo.getId()),
+                                String.format("Tiempo reanudación: t=%.2fh", tiempoActual)
+                        ));
+                    }
+                }
+
+                if (tiempoActual < tiempoFinMax) {
+                    eventosFase.add(new EventoSimulacion(
+                            tiempoActual,
+                            horaBase,
+                            TipoEvento.RETORNO_ALMACEN,
+                            vehiculo.getId(),
+                            null,
+                            nodoActual.getX(),
+                            nodoActual.getY(),
+                            String.format("Iniciando retorno hacia almacén base %s (%d,%d)", base.getId(), base.getX(), base.getY()),
+                            String.format(Locale.US, "Distancia previa: %.1f km | Descarga completa", distanciaRecorrida)
+                    ));
+
+                    List<NodoCuadricula> caminoRetorno = mapa.getCaminoMasCorto(nodoActual, base);
+                    for (int i = 0; i < caminoRetorno.size() - 1; i++) {
+                        NodoCuadricula origenPaso = caminoRetorno.get(i);
+                        NodoCuadricula destinoPaso = caminoRetorno.get(i + 1);
+
+                        double distPaso = kmPorCuadra;
+                        double tiempoPaso = distPaso / velocidad;
+
+                        tiempoActual += tiempoPaso;
+                        distanciaRecorrida += distPaso;
+                        double costoAcum = distanciaRecorrida * costoKm;
+
+                        if (tiempoActual > tiempoFinMax) {
+                            tiempoActual = tiempoFinMax;
+                            nodoActual = destinoPaso;
+                            break;
+                        }
+
+                        eventosFase.add(new EventoSimulacion(
+                                tiempoActual,
+                                horaBase,
+                                TipoEvento.MOVIMIENTO_TRAMO,
+                                vehiculo.getId(),
+                                null,
+                                destinoPaso.getX(),
+                                destinoPaso.getY(),
+                                String.format("Tránsito retorno (%d,%d) -> (%d,%d) hacia base %s",
+                                        origenPaso.getX(), origenPaso.getY(), destinoPaso.getX(), destinoPaso.getY(), base.getId()),
+                                String.format(Locale.US, "Dist: %.1f km | Costo: S/ %.2f | Retorno a Base", distanciaRecorrida, costoAcum)
+                        ));
+                    }
+
+                    if (tiempoActual <= tiempoFinMax && nodoActual.equals(base)) {
+                        eventosFase.add(new EventoSimulacion(
+                                tiempoActual,
+                                horaBase,
+                                TipoEvento.LLEGADA_ALMACEN,
+                                vehiculo.getId(),
+                                null,
+                                base.getX(),
+                                base.getY(),
+                                String.format("Vehículo %s arribó exitosamente a su almacén base %s", vehiculo.getId(), base.getId()),
+                                String.format(Locale.US, "Jornada completada | Dist total: %.1f km | Costo total: S/ %.2f", distanciaRecorrida, distanciaRecorrida * costoKm)
+                        ));
+                    }
+                }
+            }
+
+            EstadoVehiculo evEstado = new EstadoVehiculo(vehiculo.getId(), tipoVehiculo, nodoActual, vehiculo.getAlmacenBase(), tiempoActual, vehiculo.getTiempoInicioTurno());
+            evEstado.setCapacidadDisponible(tipoVehiculo.getCapacidad() - cargaActual);
+            evEstado.setRefrigerioTomado(refrigerioTomado);
+            estadosVehiculos.put(vehiculo.getId(), evEstado);
         }
 
-        // Ordenar cronológicamente todos los eventos de la fase
         eventosFase.sort(Comparator.comparingDouble(EventoSimulacion::getTiempoHoras));
 
         for (EventoSimulacion ev : eventosFase) {
@@ -163,10 +324,19 @@ public class MotorSimulacion {
         return eventosFase;
     }
 
+    public Map<String, EstadoVehiculo> getEstadosVehiculos() {
+        return estadosVehiculos;
+    }
+
+    public Set<String> getPedidosCompletados() {
+        return pedidosCompletados;
+    }
+
     public void registrarBloqueoCalle(double tiempo, int x1, int y1, int x2, int y2) {
         mapa.bloquearArista(x1, y1, x2, y2);
         gestorLog.registrarEvento(new EventoSimulacion(
                 tiempo,
+                configuracion.getOperacion().getHoraInicioTurno(),
                 TipoEvento.INCIDENCIA_BLOQUEO,
                 null,
                 null,
@@ -177,9 +347,24 @@ public class MotorSimulacion {
         ));
     }
 
+    public void registrarAveriaVehiculo(double tiempo, String vehiculoId, int x, int y, String motivo) {
+        gestorLog.registrarEvento(new EventoSimulacion(
+                tiempo,
+                configuracion.getOperacion().getHoraInicioTurno(),
+                TipoEvento.INCIDENCIA_AVERIA_VEHICULO,
+                vehiculoId,
+                null,
+                x,
+                y,
+                String.format("EMERGENCIA DE FLOTA: Vehículo %s sufrió avería mecánica en (%d,%d). Fuera de servicio.", vehiculoId, x, y),
+                "Motivo: " + motivo + " | Acción: Reasignación forzosa de pedidos"
+        ));
+    }
+
     public void registrarNuevoPedido(double tiempo, Pedido pedido) {
         gestorLog.registrarEvento(new EventoSimulacion(
                 tiempo,
+                configuracion.getOperacion().getHoraInicioTurno(),
                 TipoEvento.INCIDENCIA_NUEVO_PEDIDO,
                 null,
                 pedido.getId(),
@@ -194,6 +379,7 @@ public class MotorSimulacion {
     public void registrarFinSimulacion(double tiempo, String resumenFinal) {
         gestorLog.registrarEvento(new EventoSimulacion(
                 tiempo,
+                configuracion.getOperacion().getHoraInicioTurno(),
                 TipoEvento.FIN_SIMULACION,
                 null,
                 null,

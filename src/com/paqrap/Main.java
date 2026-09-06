@@ -1,172 +1,266 @@
 package com.paqrap;
 
+import com.paqrap.configuracion.*;
 import com.paqrap.modelo.*;
 import com.paqrap.solucionador.*;
 import com.paqrap.simulador.*;
+import java.io.File;
 import java.util.*;
 
 public class Main {
 
     public static void main(String[] args) {
-        System.out.println("=========================================================");
-        System.out.println("   PaqRap - Motor ALNS de Enrutamiento y Replanificación ");
-        System.out.println("=========================================================\n");
+        System.out.println("===============================================================================");
+        System.out.println("      PaqRap - Sistema ALNS Parametrizado mediante Archivo JSON                ");
+        System.out.println("===============================================================================\n");
 
-        // 1. Configurar Mapa en Cuadrícula (20x20)
-        MapaCuadricula mapa = new MapaCuadricula(20, 20);
+        if (args.length > 0 && ("--comparativa".equalsIgnoreCase(args[0]) || "-c".equalsIgnoreCase(args[0]))) {
+            try {
+                ExperimentoComparativo.main(args.length > 1 ? new String[]{args[1]} : new String[]{"config/configuracion.json"});
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+            return;
+        }
 
-        // Almacenes
-        NodoCuadricula almacenCentral = new NodoCuadricula("AlmacenCentral", 10, 10, TipoNodo.ALMACEN_CENTRAL);
-        NodoCuadricula almacenInter1 = new NodoCuadricula("AlmacenInter1", 5, 5, TipoNodo.ALMACEN_INTERMEDIO);
-        NodoCuadricula almacenInter2 = new NodoCuadricula("AlmacenInter2", 15, 15, TipoNodo.ALMACEN_INTERMEDIO);
+        // 1. Cargar archivo de configuración JSON (por argumento CLI o por defecto)
+        String rutaConfig = (args.length > 0) ? args[0] : "config/configuracion.json";
+        File archivoConfig = new File(rutaConfig);
+        ConfiguracionSistema config;
 
-        // Flotas de Vehículos
-        List<EstadoVehiculo> flotaInicial = new ArrayList<>();
-        flotaInicial.add(new EstadoVehiculo("Auto-1", TipoVehiculo.AUTO, almacenCentral, 0.0, 7.0));
-        flotaInicial.add(new EstadoVehiculo("Auto-2", TipoVehiculo.AUTO, almacenCentral, 0.0, 7.0));
-        flotaInicial.add(new EstadoVehiculo("Moto-1", TipoVehiculo.MOTO, almacenCentral, 0.0, 7.0));
-        flotaInicial.add(new EstadoVehiculo("Moto-2", TipoVehiculo.MOTO, almacenCentral, 0.0, 7.0));
-        flotaInicial.add(new EstadoVehiculo("Bici-1", TipoVehiculo.BICI, almacenCentral, 0.0, 7.0));
-        flotaInicial.add(new EstadoVehiculo("Bici-2", TipoVehiculo.BICI, almacenCentral, 0.0, 7.0));
+        try {
+            if (archivoConfig.exists()) {
+                System.out.println(">> Cargando configuración desde archivo JSON: " + archivoConfig.getPath());
+                config = ConfiguracionSistema.cargarDesdeArchivo(archivoConfig);
+            } else {
+                System.out.println(">> Archivo " + rutaConfig + " no encontrado. Inicializando configuración por defecto.");
+                config = new ConfiguracionSistema();
+            }
+        } catch (Exception e) {
+            System.err.println("Error al parsear el JSON de configuración: " + e.getMessage());
+            e.printStackTrace();
+            return;
+        }
 
-        // Pedidos Iniciales de Clientes (t=0)
-        List<Pedido> pedidosIniciales = new ArrayList<>();
-        pedidosIniciales.add(new Pedido("Ped-01", new NodoCuadricula("C1", 12, 12, TipoNodo.CLIENTE), 4, 0.0, 4.0));
-        pedidosIniciales.add(new Pedido("Ped-02", new NodoCuadricula("C2", 8, 14, TipoNodo.CLIENTE), 6, 0.0, 8.0));
-        pedidosIniciales.add(new Pedido("Ped-03", new NodoCuadricula("C3", 3, 7, TipoNodo.CLIENTE), 2, 0.0, 12.0));
-        pedidosIniciales.add(new Pedido("Ped-04", new NodoCuadricula("C4", 16, 8, TipoNodo.CLIENTE), 8, 0.0, 18.0));
-        pedidosIniciales.add(new Pedido("Ped-05", new NodoCuadricula("C5", 14, 4, TipoNodo.CLIENTE), 3, 0.0, 36.0));
-        pedidosIniciales.add(new Pedido("Ped-06", new NodoCuadricula("C6", 6, 18, TipoNodo.CLIENTE), 5, 0.0, 8.0));
-        pedidosIniciales.add(new Pedido("Ped-07", new NodoCuadricula("C7", 18, 12, TipoNodo.CLIENTE), 7, 0.0, 12.0));
-        pedidosIniciales.add(new Pedido("Ped-08", new NodoCuadricula("C8", 2, 2, TipoNodo.CLIENTE), 4, 0.0, 4.0));
-        pedidosIniciales.add(new Pedido("Ped-09", new NodoCuadricula("C9", 9, 3, TipoNodo.CLIENTE), 1, 0.0, 18.0));
-        pedidosIniciales.add(new Pedido("Ped-10", new NodoCuadricula("C10", 11, 17, TipoNodo.CLIENTE), 6, 0.0, 36.0));
+        // 2. Construir Entorno, Mapa y Contexto inicial desde los parámetros JSON
+        MapaCuadricula mapa = config.construirMapa();
+        ConfiguracionEntorno ent = config.getEntorno();
+        ConfiguracionOperacion op = config.getOperacion();
 
-        // Construir Contexto del Problema Inicial
-        ContextoProblema contextoInicial = new ContextoProblema(0.0, mapa);
-        contextoInicial.agregarAlmacen(almacenCentral);
-        contextoInicial.agregarAlmacen(almacenInter1);
-        contextoInicial.agregarAlmacen(almacenInter2);
+        System.out.println("\nParámetros Cargados del Sistema:");
+        System.out.printf(" • Red Cuadrícula   : %dx%d km (%.1f km por cuadra, doble sentido: %b)\n",
+                ent.getAnchoMapa(), ent.getAltoMapa(), ent.getKmPorCuadra(), ent.isCallesDobleSentido());
+        System.out.printf(" • Almacenes        : 1 Central en (%d,%d) + %d Intermedios\n",
+                config.getAlmacenCentral().getX(), config.getAlmacenCentral().getY(), config.getAlmacenesIntermedios().size());
+        System.out.printf(" • Tipos de Vehículo: %d categorías registradas (", config.getTiposVehiculo().size());
+        for (int i = 0; i < config.getTiposVehiculo().size(); i++) {
+            TipoVehiculo tv = config.getTiposVehiculo().get(i);
+            System.out.printf("%s: cap=%d, vel=%.0fkm/h, cost=S/%.2f/km%s",
+                    tv.getNombre(), tv.getCapacidad(), tv.getVelocidadKmH(), tv.getCostoPorKm(),
+                    (i < config.getTiposVehiculo().size() - 1) ? " | " : "");
+        }
+        System.out.println(")");
+        System.out.printf(" • Flota Activa     : %d unidades asignadas a almacenes\n", config.getFlota().size());
+        System.out.printf(" • Turno Laboral    : %.1fh (inicio: %02d:00, atención cliente: %.1fh, refrigerio: %.1fh)\n",
+                op.getDuracionTurnoHoras(), (int) op.getHoraInicioTurno(), op.getTiempoServicioClienteHoras(), op.getDuracionRefrigerioHoras());
+        System.out.printf(" • ALNS Parámetros  : maxIter=%d, maxSinMejora=%d, reac=%.2f, SPP=%d, SA_Temp=%.1f\n",
+                config.getAlns().getMaxIteraciones(), config.getAlns().getMaxSinMejora(), config.getAlns().getFactorReaccion(),
+                config.getAlns().getIntervaloSPP(), config.getAlns().getTemperaturaAceptacionSA());
+        System.out.printf(" • Semáforos        : Verde >= %.1fh, Ámbar >= %.1fh, Rojo < %.1fh\n",
+                config.getSemaforos().getHolguraVerdeHoras(), config.getSemaforos().getHolguraAmbarHoras(), config.getSemaforos().getHolguraAmbarHoras());
+        System.out.printf(" • Cartera Pedidos  : %d pedidos iniciales cargados\n", config.getPedidosIniciales().size());
+        System.out.println("-------------------------------------------------------------------------------\n");
 
-        for (EstadoVehiculo ev : flotaInicial) contextoInicial.agregarVehiculo(ev);
-        for (Pedido p : pedidosIniciales) contextoInicial.agregarPedido(p);
-
-        // Inicializar Gestor de Log y Motor de Simulación
-        GestorLogSimulacion gestorLog = new GestorLogSimulacion("logs", false);
-        MotorSimulacion motorSimulacion = new MotorSimulacion(mapa, gestorLog);
+        // 3. Inicializar Gestor de Log y Motor de Simulación
+        GestorLogSimulacion gestorLog = new GestorLogSimulacion(
+                config.getSimulacion().getDirectorioLogs(),
+                config.getSimulacion().isImprimirEnConsola()
+        );
+        MotorSimulacion motorSimulacion = new MotorSimulacion(mapa, gestorLog, config);
 
         gestorLog.registrarEvento(new EventoSimulacion(
                 0.0,
+                op.getHoraInicioTurno(),
                 TipoEvento.INICIO_SIMULACION,
                 null,
                 null,
-                10,
-                10,
-                "Inicio de la Simulación de Operaciones PaqRap (Turno Mañana: 07:00:00)",
-                "Almacén Central en (10,10) | Flota inicial: 6 vehículos"
+                config.getAlmacenCentral().getX(),
+                config.getAlmacenCentral().getY(),
+                String.format("Inicio de Operaciones PaqRap (Turno %02d:00:00)", (int) op.getHoraInicioTurno()),
+                String.format("%d Almacenes | %d Vehículos | %d Pedidos",
+                        1 + config.getAlmacenesIntermedios().size(), config.getFlota().size(), config.getPedidosIniciales().size())
         ));
 
-        // Configuración del Solucionador ALNS
-        ConfiguracionALNS configuracion = new ConfiguracionALNS();
-        configuracion.setMaxIteraciones(300);
-        configuracion.setMaxSinMejora(80);
-        configuracion.setIntervaloActualizacion(15);
-        configuracion.setIntervaloSPP(25);
+        // 4. Planificación Inicial ALNS
+        System.out.println("-------------------------------------------------------------------------------");
+        System.out.printf("FASE 1: PLANIFICACIÓN INICIAL ALNS (t = 0.0h / %02d:00:00)\n", (int) op.getHoraInicioTurno());
+        System.out.println("-------------------------------------------------------------------------------");
 
-        SolucionadorALNS solucionador = new SolucionadorALNS(configuracion);
+        ContextoProblema contextoInicial = config.construirContextoInicial(mapa);
+        SolucionadorALNS solucionador = new SolucionadorALNS(config.getAlns());
 
-        System.out.println("---------------------------------------------------------");
-        System.out.println("1. EJECUTANDO PLANIFICACIÓN INICIAL ALNS (t = 0.0h)");
-        System.out.println("---------------------------------------------------------");
-
-        long tiempoInicio = System.currentTimeMillis();
+        long tInicio = System.currentTimeMillis();
         Solucion solucionInicial = solucionador.resolver(contextoInicial);
-        long tiempoFin = System.currentTimeMillis();
+        long tFin = System.currentTimeMillis();
 
-        imprimirSolucion(solucionInicial, (tiempoFin - tiempoInicio));
+        imprimirResumenSolucion(solucionInicial, (tFin - tInicio), op.getPenalizacionPedidoNoAsignado());
 
-        // Simular movimientos de la planificación inicial hasta t = 2.0h
-        System.out.println("\n>> [Simulador] Registrando movimientos y estados en cuadrícula (t=0.0h a t=2.0h)...");
-        motorSimulacion.simularRutas(solucionInicial, 0.0, 2.0);
+        // Encontrar tiempo de primera disrupción
+        double tiempoDisrupcion = 2.5;
+        List<Map<String, Object>> disrupciones = config.getDisrupciones();
+        if (!disrupciones.isEmpty()) {
+            tiempoDisrupcion = LectorJson.getDouble(disrupciones.get(0), "tiempoHoras", 2.5);
+        }
 
-        // ---------------------------------------------------------
-        // 2. ESCENARIO DE REPLANIFICACIÓN DINÁMICA (t = 2.0h)
-        // ---------------------------------------------------------
-        System.out.println("\n---------------------------------------------------------");
-        System.out.println("2. EJECUTANDO ESCENARIO DE REPLANIFICACIÓN DINÁMICA (t = 2.0h)");
-        System.out.println("---------------------------------------------------------");
-        System.out.println(">> Incidencia Detectada: Tramo de calle (10,10) a (11,10) está BLOQUEADO.");
-        System.out.println(">> Nuevos Pedidos Exprés Llegados: Ped-11 (plazo 4h), Ped-12 (plazo 8h).");
+        System.out.printf("\n>> [Simulador] Ejecutando simulación de movimientos (0.0h a %.1fh)...\n", tiempoDisrupcion);
+        motorSimulacion.simularRutas(solucionInicial, 0.0, tiempoDisrupcion);
 
-        // Registrar incidencias en el motor y mapa
-        motorSimulacion.registrarBloqueoCalle(2.0, 10, 10, 11, 10);
-        Pedido p11 = new Pedido("Ped-11-EXPRES", new NodoCuadricula("C11", 13, 10, TipoNodo.CLIENTE), 3, 2.0, 4.0);
-        Pedido p12 = new Pedido("Ped-12-EXPRES", new NodoCuadricula("C12", 7, 7, TipoNodo.CLIENTE), 2, 2.0, 8.0);
-        motorSimulacion.registrarNuevoPedido(2.0, p11);
-        motorSimulacion.registrarNuevoPedido(2.0, p12);
-        gestorLog.registrarEstado(2.0, "Incidencias registradas a las 09:00:00 (t=2.0h)", "Calle (10,10)-(11,10) bloqueada | 2 nuevos pedidos exprés");
+        // 5. Procesamiento de Disrupciones Parametrizadas desde el JSON
+        System.out.println("\n-------------------------------------------------------------------------------");
+        System.out.printf("FASE 2: PROCESANDO DISRUPCIONES EN TIEMPO REAL (t = %.1fh)\n", tiempoDisrupcion);
+        System.out.println("-------------------------------------------------------------------------------");
 
-        // Posiciones actualizadas de los vehículos en t = 2.0h
-        List<EstadoVehiculo> flotaActualizada = new ArrayList<>();
-        flotaActualizada.add(new EstadoVehiculo("Auto-1", TipoVehiculo.AUTO, new NodoCuadricula("Pos-A1", 11, 11, TipoNodo.CLIENTE), 2.0, 7.0));
-        flotaActualizada.add(new EstadoVehiculo("Auto-2", TipoVehiculo.AUTO, almacenCentral, 2.0, 7.0));
-        flotaActualizada.add(new EstadoVehiculo("Moto-1", TipoVehiculo.MOTO, new NodoCuadricula("Pos-M1", 8, 14, TipoNodo.CLIENTE), 2.0, 7.0));
-        flotaActualizada.add(new EstadoVehiculo("Moto-2", TipoVehiculo.MOTO, almacenCentral, 2.0, 7.0));
-        flotaActualizada.add(new EstadoVehiculo("Bici-1", TipoVehiculo.BICI, almacenCentral, 2.0, 7.0));
-        flotaActualizada.add(new EstadoVehiculo("Bici-2", TipoVehiculo.BICI, almacenCentral, 2.0, 7.0));
+        Set<String> vehiculosAveriados = new HashSet<>();
+        List<Pedido> nuevosPedidosExpres = new ArrayList<>();
 
-        ContextoProblema contextoReplan = new ContextoProblema(2.0, mapa);
-        contextoReplan.agregarAlmacen(almacenCentral);
-        contextoReplan.agregarAlmacen(almacenInter1);
-        contextoReplan.agregarAlmacen(almacenInter2);
+        for (Map<String, Object> dis : disrupciones) {
+            double tDis = LectorJson.getDouble(dis, "tiempoHoras", tiempoDisrupcion);
+            String tipoDis = LectorJson.getString(dis, "tipo", "");
 
-        for (EstadoVehiculo ev : flotaActualizada) contextoReplan.agregarVehiculo(ev);
-
-        // Pedidos pendientes + nuevos pedidos exprés en t = 2.0h
-        for (Pedido p : pedidosIniciales) {
-            if (!p.getId().equals("Ped-01")) {
-                contextoReplan.agregarPedido(p);
+            if ("BLOQUEO_CALLE".equalsIgnoreCase(tipoDis)) {
+                int x1 = LectorJson.getInt(dis, "x1", 0);
+                int y1 = LectorJson.getInt(dis, "y1", 0);
+                int x2 = LectorJson.getInt(dis, "x2", 0);
+                int y2 = LectorJson.getInt(dis, "y2", 0);
+                motorSimulacion.registrarBloqueoCalle(tDis, x1, y1, x2, y2);
+                System.out.printf(">> ALERTA VIAL: Calle (%d,%d) <-> (%d,%d) BLOQUEADA.\n", x1, y1, x2, y2);
+            } else if ("AVERIA_VEHICULO".equalsIgnoreCase(tipoDis)) {
+                String vid = LectorJson.getString(dis, "vehiculoId", "");
+                int x = LectorJson.getInt(dis, "x", 0);
+                int y = LectorJson.getInt(dis, "y", 0);
+                String motivo = LectorJson.getString(dis, "motivo", "Falla mecánica");
+                vehiculosAveriados.add(vid);
+                motorSimulacion.registrarAveriaVehiculo(tDis, vid, x, y, motivo);
+                System.out.printf(">> EMERGENCIA FLOTA: Vehículo %s AVERIADO en (%d,%d). Motivo: %s\n", vid, x, y, motivo);
+            } else if ("NUEVO_PEDIDO".equalsIgnoreCase(tipoDis)) {
+                String id = LectorJson.getString(dis, "id", "Ped-Expres");
+                String destId = LectorJson.getString(dis, "destinoId", "C-Expres");
+                int x = LectorJson.getInt(dis, "x", 0);
+                int y = LectorJson.getInt(dis, "y", 0);
+                int cant = LectorJson.getInt(dis, "cantidad", 1);
+                double plazo = LectorJson.getDouble(dis, "plazoHoras", 4.0);
+                Pedido pExp = new Pedido(id, new NodoCuadricula(destId, x, y, TipoNodo.CLIENTE), cant, tDis, plazo);
+                nuevosPedidosExpres.add(pExp);
+                motorSimulacion.registrarNuevoPedido(tDis, pExp);
+                System.out.printf(">> NUEVO PEDIDO: %s en (%d,%d) | Demanda: %d | Plazo: %.1fh (Entrega máx: %.1fh)\n",
+                        id, x, y, cant, plazo, pExp.getTiempoMaximoEntrega());
             }
         }
-        contextoReplan.agregarPedido(p11);
-        contextoReplan.agregarPedido(p12);
 
-        tiempoInicio = System.currentTimeMillis();
+        // 6. Replanificación Dinámica ALNS
+        System.out.println("\n-------------------------------------------------------------------------------");
+        System.out.printf("FASE 3: REPLANIFICACIÓN ALNS DINÁMICA ANTE CONTINGENCIAS (t = %.1fh)\n", tiempoDisrupcion);
+        System.out.println("-------------------------------------------------------------------------------");
+
+        ContextoProblema contextoReplan = new ContextoProblema(tiempoDisrupcion, mapa, op);
+        contextoReplan.agregarAlmacen(config.getAlmacenCentral());
+        for (NodoCuadricula ai : config.getAlmacenesIntermedios()) {
+            contextoReplan.agregarAlmacen(ai);
+        }
+
+        // Flota activa actualizada (excluyendo vehículos averiados)
+        Map<String, EstadoVehiculo> estados = motorSimulacion.getEstadosVehiculos();
+        for (EstadoVehiculo evOriginal : config.getFlota()) {
+            String vid = evOriginal.getId();
+            if (vehiculosAveriados.contains(vid)) {
+                continue;
+            }
+            EstadoVehiculo evActual = estados.get(vid);
+            if (evActual != null) {
+                contextoReplan.agregarVehiculo(evActual.copiar());
+            } else {
+                contextoReplan.agregarVehiculo(evOriginal.copiar());
+            }
+        }
+
+        // Pedidos pendientes no completados hasta tiempoDisrupcion + nuevos exprés
+        Set<String> completados = motorSimulacion.getPedidosCompletados();
+        int pendientesContador = 0;
+        for (Pedido p : config.getPedidosIniciales()) {
+            if (!completados.contains(p.getId())) {
+                contextoReplan.agregarPedido(p);
+                pendientesContador++;
+            }
+        }
+        for (Pedido pExp : nuevosPedidosExpres) {
+            contextoReplan.agregarPedido(pExp);
+            pendientesContador++;
+        }
+
+        System.out.printf(">> Estado del Sistema a las %s: %d entregas completadas, %d pedidos por atender.\n",
+                EventoSimulacion.formatearReloj(tiempoDisrupcion, op.getHoraInicioTurno()), completados.size(), pendientesContador);
+        System.out.printf(">> Flota disponible: %d vehículos operativos (excluidos: %s).\n",
+                contextoReplan.getVehiculosActivos().size(), vehiculosAveriados);
+
+        tInicio = System.currentTimeMillis();
         Solucion solucionReplan = solucionador.resolver(contextoReplan);
-        tiempoFin = System.currentTimeMillis();
+        tFin = System.currentTimeMillis();
 
-        imprimirSolucion(solucionReplan, (tiempoFin - tiempoInicio));
+        imprimirResumenSolucion(solucionReplan, (tFin - tInicio), op.getPenalizacionPedidoNoAsignado());
 
-        // Simular movimientos de las rutas replanificadas hasta término
-        System.out.println("\n>> [Simulador] Registrando movimientos tras replanificación (t=2.0h en adelante)...");
-        motorSimulacion.simularRutas(solucionReplan, 2.0, 12.0);
+        // 7. Simular ejecución post-replanificación hasta completar pedidos
+        System.out.println("\n>> [Simulador] Ejecutando simulación tras replanificación...");
+        motorSimulacion.simularRutas(solucionReplan, tiempoDisrupcion, 18.0);
 
-        motorSimulacion.registrarFinSimulacion(12.0, String.format(Locale.US, "Costo Final: S/ %.2f | Entregas completadas", solucionReplan.calcularCostoTotal()));
+        motorSimulacion.registrarFinSimulacion(18.0, String.format(Locale.US,
+                "Costo Final Replanificado: S/ %.2f | Pedidos No Asignados: %d",
+                solucionReplan.calcularCostoTotal(op.getPenalizacionPedidoNoAsignado()),
+                solucionReplan.getPedidosNoAsignados().size()));
 
-        System.out.println("\n=========================================================");
-        System.out.println("   ¡Simulación y Generación de Logs Completada!         ");
-        System.out.println("=========================================================");
-        System.out.println(">> Archivos de Log generados:");
-        System.out.println("   • Texto Legible  : " + gestorLog.getArchivoLogTexto().getPath());
-        System.out.println("   • JSON Estructura: " + gestorLog.getArchivoLogJson().getPath());
-        System.out.println("   • Total Eventos  : " + gestorLog.getEventos().size());
-        System.out.println("=========================================================");
+        System.out.println("\n===============================================================================");
+        System.out.println("   ¡Simulación y Replanificación Parametrizada Concluida con Éxito!           ");
+        System.out.println("===============================================================================");
+        System.out.println(">> Estadísticas y Registro de Auditoría:");
+        System.out.println("   • Archivo de Configuración JSON: " + archivoConfig.getPath());
+        System.out.println("   • Archivo Log de Texto Plano   : " + gestorLog.getArchivoLogTexto().getPath());
+        System.out.println("   • Archivo Log en JSON          : " + gestorLog.getArchivoLogJson().getPath());
+        System.out.println("   • Total de Eventos Registrados : " + gestorLog.getEventos().size());
+        System.out.println("   • Suite Comparativa ALNS vs IPSO (RNF-a / RNF-b):");
+        System.out.println("     java -cp bin com.paqrap.Main --comparativa");
+        System.out.println("===============================================================================");
     }
 
-    private static void imprimirSolucion(Solucion solucion, long tiempoEjecucionMs) {
-        System.out.printf("Tiempo de Ejecución : %d ms\n", tiempoEjecucionMs);
-        System.out.printf("Costo Total Solución: S/ %.2f\n", solucion.calcularCostoTotal());
-        System.out.printf("Pedidos No Asignados: %d\n", solucion.getPedidosNoAsignados().size());
+    private static void imprimirResumenSolucion(Solucion solucion, long tiempoMs, double penalizacionNoAsignado) {
+        System.out.printf("Tiempo de Cómputo ALNS : %d ms\n", tiempoMs);
+        System.out.printf("Costo Total de Rutas   : S/ %.2f\n", solucion.calcularCostoTotal(penalizacionNoAsignado));
+        System.out.printf("Pedidos No Asignados   : %d\n", solucion.getPedidosNoAsignados().size());
         if (!solucion.getPedidosNoAsignados().isEmpty()) {
-            System.out.println("Lista no asignados  : " + solucion.getPedidosNoAsignados());
+            System.out.println("ALERTA: Pedidos no asignados: " + solucion.getPedidosNoAsignados());
         }
-        System.out.println("\nRutas de Vehículos Generadas:");
+
+        int vehiculosConRuta = 0;
+        int totalAsignados = 0;
+        double distanciaTotal = 0.0;
+
         for (Ruta r : solucion.getRutas()) {
             if (!r.getPedidosAsignados().isEmpty()) {
-                System.out.printf(" - Vehículo %s (%s): %d pedidos asignados | Distancia: %.1f km | Costo: S/ %.2f\n",
+                vehiculosConRuta++;
+                totalAsignados += r.getPedidosAsignados().size();
+                distanciaTotal += r.getDistanciaTotal();
+            }
+        }
+
+        System.out.printf("Vehículos con Rutas    : %d de %d\n", vehiculosConRuta, solucion.getRutas().size());
+        System.out.printf("Total Pedidos Atendidos: %d\n", totalAsignados);
+        System.out.printf("Distancia Total de Red : %.1f km\n", distanciaTotal);
+
+        System.out.println("\nDetalle de Rutas Asignadas:");
+        for (Ruta r : solucion.getRutas()) {
+            if (!r.getPedidosAsignados().isEmpty()) {
+                System.out.printf("  • [%s (%s)] %d pedidos | Dist: %5.1f km | Costo: S/ %6.2f\n",
                         r.getVehiculo().getId(), r.getVehiculo().getTipo().getNombre(),
                         r.getPedidosAsignados().size(), r.getDistanciaTotal(), r.getCostoTotal());
-                System.out.print("   Paradas: ");
+                System.out.print("    Paradas: ");
                 for (int i = 0; i < r.getNodosCamino().size(); i++) {
                     System.out.printf("%s(t=%.2fh) -> ", r.getNodosCamino().get(i).getId(), r.getTiemposLlegada().get(i));
                 }

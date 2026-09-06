@@ -28,9 +28,9 @@ public class ReparacionVoraz implements OperadorReparacion {
                 for (int pos = 0; pos <= ruta.getPedidosAsignados().size(); pos++) {
                     Ruta rutaPrueba = ruta.copiar();
                     rutaPrueba.getPedidosAsignados().add(pos, pedido);
-                    EvaluadorCostos.recalculareRuta(rutaPrueba, contexto.getMapa());
+                    EvaluadorCostos.recalculareRuta(rutaPrueba, contexto.getMapa(), contexto.getConfiguracionOperacion());
 
-                    if (VerificadorRestricciones.esRutaFactible(rutaPrueba, contexto.getMapa())) {
+                    if (VerificadorRestricciones.esRutaFactible(rutaPrueba, contexto.getMapa(), contexto.getConfiguracionOperacion())) {
                         double delta = rutaPrueba.getCostoTotal() - costoActual;
                         if (delta < menorIncrementoCosto) {
                             menorIncrementoCosto = delta;
@@ -43,7 +43,7 @@ public class ReparacionVoraz implements OperadorReparacion {
 
             if (mejorRuta != null) {
                 mejorRuta.getPedidosAsignados().add(mejorIndiceInsercion, pedido);
-                EvaluadorCostos.recalculareRuta(mejorRuta, contexto.getMapa());
+                EvaluadorCostos.recalculareRuta(mejorRuta, contexto.getMapa(), contexto.getConfiguracionOperacion());
                 iterador.remove();
             }
         }

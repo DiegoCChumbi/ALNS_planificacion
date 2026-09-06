@@ -1,0 +1,160 @@
+{
+  "entorno": {
+    "anchoMapa": 30,
+    "altoMapa": 30,
+    "kmPorCuadra": 1.0,
+    "callesDobleSentido": true,
+    "penalizacionInalcanzable": 999999.0
+  },
+  "operacion": {
+    "duracionTurnoHoras": 8.0,
+    "horaInicioTurno": 7.0,
+    "tiempoServicioClienteHoras": 1.0,
+    "duracionRefrigerioHoras": 1.0,
+    "margenRefrigerioHoras": 1.0,
+    "tiempoCargaAlmacenHoras": 0.0,
+    "penalizacionPedidoNoAsignado": 10000.0
+  },
+  "almacenes": {
+    "central": {
+      "id": "AlmacenCentral",
+      "x": 15,
+      "y": 15,
+      "capacidad": -1
+    },
+    "intermedios": [
+      {
+        "id": "AlmacenInter-1",
+        "x": 6,
+        "y": 8,
+        "capacidad": 1000,
+        "horaRecarga": "23:59:59"
+      },
+      {
+        "id": "AlmacenInter-2",
+        "x": 24,
+        "y": 22,
+        "capacidad": 1000,
+        "horaRecarga": "23:59:59"
+      }
+    ]
+  },
+  "tiposVehiculo": [
+    {
+      "id": "AUTO",
+      "nombre": "Auto",
+      "capacidad": 24,
+      "velocidadKmH": 40.0,
+      "costoPorKm": 8.0
+    },
+    {
+      "id": "MOTO",
+      "nombre": "Moto",
+      "capacidad": 8,
+      "velocidadKmH": 25.0,
+      "costoPorKm": 6.0
+    },
+    {
+      "id": "BICI",
+      "nombre": "Bicicleta",
+      "capacidad": 4,
+      "velocidadKmH": 12.0,
+      "costoPorKm": 3.0
+    }
+  ],
+  "flota": [
+    { "id": "Auto-1", "tipo": "AUTO", "almacenInicio": "AlmacenCentral" },
+    { "id": "Auto-2", "tipo": "AUTO", "almacenInicio": "AlmacenCentral" },
+    { "id": "Auto-5", "tipo": "AUTO", "almacenInicio": "AlmacenCentral" },
+    { "id": "Moto-1", "tipo": "MOTO", "almacenInicio": "AlmacenCentral" },
+    { "id": "Moto-2", "tipo": "MOTO", "almacenInicio": "AlmacenCentral" },
+    { "id": "Bici-1", "tipo": "BICI", "almacenInicio": "AlmacenCentral" },
+    { "id": "Bici-2", "tipo": "BICI", "almacenInicio": "AlmacenCentral" },
+    { "id": "Auto-3", "tipo": "AUTO", "almacenInicio": "AlmacenInter-1" },
+    { "id": "Moto-3", "tipo": "MOTO", "almacenInicio": "AlmacenInter-1" },
+    { "id": "Moto-5", "tipo": "MOTO", "almacenInicio": "AlmacenInter-1" },
+    { "id": "Bici-3", "tipo": "BICI", "almacenInicio": "AlmacenInter-1" },
+    { "id": "Bici-5", "tipo": "BICI", "almacenInicio": "AlmacenInter-1" },
+    { "id": "Auto-4", "tipo": "AUTO", "almacenInicio": "AlmacenInter-2" },
+    { "id": "Auto-6", "tipo": "AUTO", "almacenInicio": "AlmacenInter-2" },
+    { "id": "Moto-4", "tipo": "MOTO", "almacenInicio": "AlmacenInter-2" },
+    { "id": "Bici-4", "tipo": "BICI", "almacenInicio": "AlmacenInter-2" }
+  ],
+  "alns": {
+    "maxIteraciones": 350,
+    "maxSinMejora": 90,
+    "intervaloActualizacion": 15,
+    "intervaloSPP": 20,
+    "factorReaccion": 0.2,
+    "minCantidadDestruccion": 1,
+    "maxCantidadDestruccion": 5,
+    "puntajeMejorGlobal": 10.0,
+    "puntajeMejorActual": 5.0,
+    "puntajeAceptado": 2.0,
+    "temperaturaAceptacionSA": 100.0,
+    "tasaEnfriamientoSA": 0.995,
+    "pesoDistanciaShaw": 1.0,
+    "pesoTiempoShaw": 2.0,
+    "epsilonMejoraRVND": 0.01
+  },
+  "semaforos": {
+    "holguraVerdeHoras": 2.0,
+    "holguraAmbarHoras": 0.5
+  },
+  "simulacion": {
+    "directorioLogs": "logs",
+    "archivoLogTexto": "simulacion_movimientos.log",
+    "archivoLogJson": "simulacion_movimientos.json",
+    "imprimirEnConsola": false
+  },
+  "pedidosIniciales": [
+    { "id": "Ped-01", "destinoId": "C01", "x": 3,  "y": 4,  "cantidad": 4,  "tiempoLiberacion": 0.0, "plazoHoras": 4.0 },
+    { "id": "Ped-02", "destinoId": "C02", "x": 8,  "y": 2,  "cantidad": 6,  "tiempoLiberacion": 0.0, "plazoHoras": 8.0 },
+    { "id": "Ped-03", "destinoId": "C03", "x": 5,  "y": 11, "cantidad": 2,  "tiempoLiberacion": 0.0, "plazoHoras": 4.0 },
+    { "id": "Ped-04", "destinoId": "C04", "x": 2,  "y": 9,  "cantidad": 3,  "tiempoLiberacion": 0.0, "plazoHoras": 12.0 },
+    { "id": "Ped-05", "destinoId": "C05", "x": 11, "y": 5,  "cantidad": 8,  "tiempoLiberacion": 0.0, "plazoHoras": 18.0 },
+    { "id": "Ped-06", "destinoId": "C06", "x": 7,  "y": 13, "cantidad": 1,  "tiempoLiberacion": 0.0, "plazoHoras": 36.0 },
+    { "id": "Ped-07", "destinoId": "C07", "x": 12, "y": 12, "cantidad": 5,  "tiempoLiberacion": 0.0, "plazoHoras": 8.0 },
+    { "id": "Ped-08", "destinoId": "C08", "x": 4,  "y": 14, "cantidad": 4,  "tiempoLiberacion": 0.0, "plazoHoras": 4.0 },
+    { "id": "Ped-09", "destinoId": "C09", "x": 9,  "y": 8,  "cantidad": 7,  "tiempoLiberacion": 0.0, "plazoHoras": 12.0 },
+    { "id": "Ped-10", "destinoId": "C10", "x": 18, "y": 3,  "cantidad": 6,  "tiempoLiberacion": 0.0, "plazoHoras": 8.0 },
+    { "id": "Ped-11", "destinoId": "C11", "x": 22, "y": 5,  "cantidad": 3,  "tiempoLiberacion": 0.0, "plazoHoras": 4.0 },
+    { "id": "Ped-12", "destinoId": "C12", "x": 26, "y": 2,  "cantidad": 5,  "tiempoLiberacion": 0.0, "plazoHoras": 12.0 },
+    { "id": "Ped-13", "destinoId": "C13", "x": 28, "y": 8,  "cantidad": 2,  "tiempoLiberacion": 0.0, "plazoHoras": 18.0 },
+    { "id": "Ped-14", "destinoId": "C14", "x": 19, "y": 10, "cantidad": 8,  "tiempoLiberacion": 0.0, "plazoHoras": 8.0 },
+    { "id": "Ped-15", "destinoId": "C15", "x": 24, "y": 11, "cantidad": 4,  "tiempoLiberacion": 0.0, "plazoHoras": 4.0 },
+    { "id": "Ped-16", "destinoId": "C16", "x": 27, "y": 13, "cantidad": 12, "tiempoLiberacion": 0.0, "plazoHoras": 36.0 },
+    { "id": "Ped-17", "destinoId": "C17", "x": 17, "y": 14, "cantidad": 3,  "tiempoLiberacion": 0.0, "plazoHoras": 8.0 },
+    { "id": "Ped-18", "destinoId": "C18", "x": 21, "y": 9,  "cantidad": 6,  "tiempoLiberacion": 0.0, "plazoHoras": 12.0 },
+    { "id": "Ped-19", "destinoId": "C19", "x": 3,  "y": 18, "cantidad": 4,  "tiempoLiberacion": 0.0, "plazoHoras": 4.0 },
+    { "id": "Ped-20", "destinoId": "C20", "x": 7,  "y": 20, "cantidad": 8,  "tiempoLiberacion": 0.0, "plazoHoras": 18.0 },
+    { "id": "Ped-21", "destinoId": "C21", "x": 2,  "y": 24, "cantidad": 3,  "tiempoLiberacion": 0.0, "plazoHoras": 8.0 },
+    { "id": "Ped-22", "destinoId": "C22", "x": 8,  "y": 26, "cantidad": 6,  "tiempoLiberacion": 0.0, "plazoHoras": 12.0 },
+    { "id": "Ped-23", "destinoId": "C23", "x": 12, "y": 22, "cantidad": 2,  "tiempoLiberacion": 0.0, "plazoHoras": 4.0 },
+    { "id": "Ped-24", "destinoId": "C24", "x": 5,  "y": 28, "cantidad": 5,  "tiempoLiberacion": 0.0, "plazoHoras": 36.0 },
+    { "id": "Ped-25", "destinoId": "C25", "x": 10, "y": 27, "cantidad": 4,  "tiempoLiberacion": 0.0, "plazoHoras": 8.0 },
+    { "id": "Ped-26", "destinoId": "C26", "x": 13, "y": 18, "cantidad": 7,  "tiempoLiberacion": 0.0, "plazoHoras": 12.0 },
+    { "id": "Ped-27", "destinoId": "C27", "x": 18, "y": 19, "cantidad": 5,  "tiempoLiberacion": 0.0, "plazoHoras": 8.0 },
+    { "id": "Ped-28", "destinoId": "C28", "x": 22, "y": 17, "cantidad": 8,  "tiempoLiberacion": 0.0, "plazoHoras": 12.0 },
+    { "id": "Ped-29", "destinoId": "C29", "x": 25, "y": 20, "cantidad": 3,  "tiempoLiberacion": 0.0, "plazoHoras": 4.0 },
+    { "id": "Ped-30", "destinoId": "C30", "x": 28, "y": 24, "cantidad": 6,  "tiempoLiberacion": 0.0, "plazoHoras": 18.0 },
+    { "id": "Ped-31", "destinoId": "C31", "x": 19, "y": 25, "cantidad": 4,  "tiempoLiberacion": 0.0, "plazoHoras": 8.0 },
+    { "id": "Ped-32", "destinoId": "C32", "x": 23, "y": 28, "cantidad": 14, "tiempoLiberacion": 0.0, "plazoHoras": 36.0 },
+    { "id": "Ped-33", "destinoId": "C33", "x": 27, "y": 27, "cantidad": 2,  "tiempoLiberacion": 0.0, "plazoHoras": 4.0 },
+    { "id": "Ped-34", "destinoId": "C34", "x": 17, "y": 28, "cantidad": 5,  "tiempoLiberacion": 0.0, "plazoHoras": 12.0 },
+    { "id": "Ped-35", "destinoId": "C35", "x": 21, "y": 22, "cantidad": 6,  "tiempoLiberacion": 0.0, "plazoHoras": 8.0 }
+  ],
+  "disrupciones": [
+    { "tiempoHoras": 2.5, "tipo": "BLOQUEO_CALLE", "x1": 15, "y1": 15, "x2": 16, "y2": 15 },
+    { "tiempoHoras": 2.5, "tipo": "BLOQUEO_CALLE", "x1": 15, "y1": 15, "x2": 15, "y2": 16 },
+    { "tiempoHoras": 2.5, "tipo": "BLOQUEO_CALLE", "x1": 15, "y1": 15, "x2": 14, "y2": 15 },
+    { "tiempoHoras": 2.5, "tipo": "BLOQUEO_CALLE", "x1": 16, "y1": 15, "x2": 16, "y2": 16 },
+    { "tiempoHoras": 2.5, "tipo": "BLOQUEO_CALLE", "x1": 14, "y1": 15, "x2": 14, "y2": 16 },
+    { "tiempoHoras": 2.5, "tipo": "AVERIA_VEHICULO", "vehiculoId": "Moto-1", "x": 7, "y": 20, "motivo": "Rotura de eje en tránsito" },
+    { "tiempoHoras": 2.5, "tipo": "NUEVO_PEDIDO", "id": "Ped-36-EXPRES", "destinoId": "C36", "x": 14, "y": 13, "cantidad": 3, "plazoHoras": 4.0 },
+    { "tiempoHoras": 2.5, "tipo": "NUEVO_PEDIDO", "id": "Ped-37-EXPRES", "destinoId": "C37", "x": 20, "y": 16, "cantidad": 2, "plazoHoras": 4.0 },
+    { "tiempoHoras": 2.5, "tipo": "NUEVO_PEDIDO", "id": "Ped-38-EXPRES", "destinoId": "C38", "x": 8,  "y": 8,  "cantidad": 4, "plazoHoras": 4.0 },
+    { "tiempoHoras": 2.5, "tipo": "NUEVO_PEDIDO", "id": "Ped-39-EXPRES", "destinoId": "C39", "x": 25, "y": 23, "cantidad": 5, "plazoHoras": 8.0 },
+    { "tiempoHoras": 2.5, "tipo": "NUEVO_PEDIDO", "id": "Ped-40-EXPRES", "destinoId": "C40", "x": 11, "y": 25, "cantidad": 2, "plazoHoras": 8.0 }
+  ]
+}

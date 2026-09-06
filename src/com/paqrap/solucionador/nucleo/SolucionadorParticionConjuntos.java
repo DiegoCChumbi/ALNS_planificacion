@@ -36,7 +36,7 @@ public class SolucionadorParticionConjuntos {
 
             if (!haySolapamiento && !candidata.getPedidosAsignados().isEmpty()) {
                 Ruta rCopia = candidata.copiar();
-                EvaluadorCostos.recalculareRuta(rCopia, contexto.getMapa());
+                EvaluadorCostos.recalculareRuta(rCopia, contexto.getMapa(), contexto.getConfiguracionOperacion());
                 rutasSeleccionadas.add(rCopia);
                 pedidosCubiertos.addAll(rCopia.getPedidosAsignados());
                 vehiculosUsados.add(idVehiculo);
@@ -46,7 +46,7 @@ public class SolucionadorParticionConjuntos {
         for (EstadoVehiculo ev : contexto.getVehiculosActivos()) {
             if (!vehiculosUsados.contains(ev.getId())) {
                 Ruta rutaVacia = new Ruta(ev);
-                EvaluadorCostos.recalculareRuta(rutaVacia, contexto.getMapa());
+                EvaluadorCostos.recalculareRuta(rutaVacia, contexto.getMapa(), contexto.getConfiguracionOperacion());
                 rutasSeleccionadas.add(rutaVacia);
             }
         }

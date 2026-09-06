@@ -1,20 +1,27 @@
 package com.paqrap.modelo;
 
+import com.paqrap.configuracion.ConfiguracionOperacion;
 import java.util.*;
 
 public class ContextoProblema {
     private final double marcaTiempoActual;
     private final MapaCuadricula mapa;
+    private final ConfiguracionOperacion configuracionOperacion;
     private final List<NodoCuadricula> almacenes;
     private final List<Pedido> pedidosPendientes;
     private final List<EstadoVehiculo> vehiculosActivos;
 
-    public ContextoProblema(double marcaTiempoActual, MapaCuadricula mapa) {
+    public ContextoProblema(double marcaTiempoActual, MapaCuadricula mapa, ConfiguracionOperacion configuracionOperacion) {
         this.marcaTiempoActual = marcaTiempoActual;
         this.mapa = mapa;
+        this.configuracionOperacion = (configuracionOperacion != null) ? configuracionOperacion : new ConfiguracionOperacion();
         this.almacenes = new ArrayList<>();
         this.pedidosPendientes = new ArrayList<>();
         this.vehiculosActivos = new ArrayList<>();
+    }
+
+    public ContextoProblema(double marcaTiempoActual, MapaCuadricula mapa) {
+        this(marcaTiempoActual, mapa, new ConfiguracionOperacion());
     }
 
     public double getMarcaTiempoActual() {
@@ -23,6 +30,10 @@ public class ContextoProblema {
 
     public MapaCuadricula getMapa() {
         return mapa;
+    }
+
+    public ConfiguracionOperacion getConfiguracionOperacion() {
+        return configuracionOperacion;
     }
 
     public List<NodoCuadricula> getAlmacenes() {

@@ -11,9 +11,9 @@ public class EventoSimulacion {
     private final String descripcion;
     private final String datosAdicionales;
 
-    public EventoSimulacion(double tiempoHoras, TipoEvento tipo, String vehiculoId, String pedidoId, int x, int y, String descripcion, String datosAdicionales) {
+    public EventoSimulacion(double tiempoHoras, double horaBase, TipoEvento tipo, String vehiculoId, String pedidoId, int x, int y, String descripcion, String datosAdicionales) {
         this.tiempoHoras = tiempoHoras;
-        this.reloj = formatearReloj(tiempoHoras);
+        this.reloj = formatearReloj(tiempoHoras, horaBase);
         this.tipo = tipo;
         this.vehiculoId = vehiculoId;
         this.pedidoId = pedidoId;
@@ -23,13 +23,21 @@ public class EventoSimulacion {
         this.datosAdicionales = (datosAdicionales != null) ? datosAdicionales : "";
     }
 
-    public static String formatearReloj(double horasDesdeInicio) {
-        double totalSegundos = (7.0 + horasDesdeInicio) * 3600.0;
+    public EventoSimulacion(double tiempoHoras, TipoEvento tipo, String vehiculoId, String pedidoId, int x, int y, String descripcion, String datosAdicionales) {
+        this(tiempoHoras, 7.0, tipo, vehiculoId, pedidoId, x, y, descripcion, datosAdicionales);
+    }
+
+    public static String formatearReloj(double horasDesdeInicio, double horaBase) {
+        double totalSegundos = (horaBase + horasDesdeInicio) * 3600.0;
         long seg = (long) Math.round(totalSegundos) % (24 * 3600);
         long h = seg / 3600;
         long m = (seg % 3600) / 60;
         long s = seg % 60;
         return String.format("%02d:%02d:%02d", h, m, s);
+    }
+
+    public static String formatearReloj(double horasDesdeInicio) {
+        return formatearReloj(horasDesdeInicio, 7.0);
     }
 
     public double getTiempoHoras() { return tiempoHoras; }

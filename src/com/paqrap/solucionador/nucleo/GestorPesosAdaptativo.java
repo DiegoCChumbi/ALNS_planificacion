@@ -39,7 +39,12 @@ public class GestorPesosAdaptativo<T> {
                 return i;
             }
         }
+        vecesUtilizado[pesos.length - 1]++;
         return pesos.length - 1;
+    }
+
+    public T obtenerOperador(int indice) {
+        return operadores.get(indice);
     }
 
     public T seleccionarOperador() {

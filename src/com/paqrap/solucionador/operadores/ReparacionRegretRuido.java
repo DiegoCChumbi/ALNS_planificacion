@@ -5,28 +5,45 @@ import com.paqrap.evaluador.VerificadorRestricciones;
 import com.paqrap.modelo.*;
 import java.util.*;
 
-public class ReparacionRegret implements OperadorReparacion {
+/**
+ * Operador de Reparación: Inserción Regret con Factor de Ruido (Noise Regret).
+ * Referencia: Ropke & Pisinger (2006b), Friedrich & Elbert (2022, Sección 4.3.3).
+ * Incorpora un término de perturbación estocástica aleatoria al evaluar los costos
+ * de inserción: ΔC' = max(0, ΔC * (1 + ξ)), con ξ ∈ [-factorRuido, +factorRuido].
+ * Crucial para romper empates y simetrías en la cuadrícula de Manhattan de PaqRap.
+ */
+public class ReparacionRegretRuido implements OperadorReparacion {
 
     private final int kRegret;
+    private final double factorRuidoMax;
+    private final Random random;
 
-    public ReparacionRegret(int kRegret) {
+    public ReparacionRegretRuido(int kRegret, double factorRuidoMax) {
         this.kRegret = kRegret;
+        this.factorRuidoMax = factorRuidoMax;
+        this.random = new Random();
+    }
+
+    public ReparacionRegretRuido(int kRegret) {
+        this(kRegret, 0.20);
     }
 
     @Override
     public String getNombre() {
-        return "Inserción Regret-" + kRegret;
+        return String.format("Inserción Regret-%d con Ruido (%.0f%%)", kRegret, factorRuidoMax * 100);
     }
 
     private static class OpcionInsercion {
         Ruta ruta;
         int posicion;
         double deltaCosto;
+        double deltaCostoConRuido;
 
-        OpcionInsercion(Ruta ruta, int posicion, double deltaCosto) {
+        OpcionInsercion(Ruta ruta, int posicion, double deltaCosto, double deltaCostoConRuido) {
             this.ruta = ruta;
             this.posicion = posicion;
             this.deltaCosto = deltaCosto;
+            this.deltaCostoConRuido = deltaCostoConRuido;
         }
     }
 
@@ -51,21 +68,24 @@ public class ReparacionRegret implements OperadorReparacion {
 
                         if (VerificadorRestricciones.esRutaFactible(rutaPrueba, contexto.getMapa(), contexto.getConfiguracionOperacion())) {
                             double delta = rutaPrueba.getCostoTotal() - costoActual;
-                            opciones.add(new OpcionInsercion(ruta, pos, delta));
+                            double xi = (random.nextDouble() * 2.0 - 1.0) * factorRuidoMax;
+                            double deltaConRuido = Math.max(0.0, delta * (1.0 + xi));
+                            opciones.add(new OpcionInsercion(ruta, pos, delta, deltaConRuido));
                         }
                     }
                 }
 
                 if (opciones.isEmpty()) continue;
 
-                opciones.sort(Comparator.comparingDouble(o -> o.deltaCosto));
+                // Ordenar según el costo perturbado con ruido
+                opciones.sort(Comparator.comparingDouble(o -> o.deltaCostoConRuido));
 
                 double regret = 0.0;
                 if (opciones.size() == 1) {
-                    regret = opciones.get(0).deltaCosto;
+                    regret = opciones.get(0).deltaCostoConRuido;
                 } else {
                     int k = Math.min(kRegret - 1, opciones.size() - 1);
-                    regret = opciones.get(k).deltaCosto - opciones.get(0).deltaCosto;
+                    regret = opciones.get(k).deltaCostoConRuido - opciones.get(0).deltaCostoConRuido;
                 }
 
                 if (regret > valorMaxRegret) {

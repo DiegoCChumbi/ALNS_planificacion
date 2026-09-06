@@ -8,7 +8,12 @@ import com.paqrap.solucionador.nucleo.SolucionadorParticionConjuntos;
 import com.paqrap.solucionador.operadores.*;
 import java.util.*;
 
-public class SolucionadorALNS {
+public class SolucionadorALNS implements PlanificadorRutas {
+
+    @Override
+    public String getNombre() {
+        return "ALNS (Adaptive Large Neighborhood Search)";
+    }
 
     private final ConfiguracionALNS configuracion;
     private final GestorPesosAdaptativo<OperadorDestruccion> gestorDestruccion;
@@ -22,18 +27,22 @@ public class SolucionadorALNS {
         List<OperadorDestruccion> operadoresDestruccion = Arrays.asList(
                 new DestruccionAleatoria(),
                 new DestruccionPeorCosto(),
-                new DestruccionShaw()
+                new DestruccionShaw(configuracion.getPesoDistanciaShaw(), configuracion.getPesoTiempoShaw()),
+                new DestruccionRutaCompleta(),
+                new DestruccionCluster()
         );
 
         List<OperadorReparacion> operadoresReparacion = Arrays.asList(
                 new ReparacionVoraz(),
                 new ReparacionRegret(2),
-                new ReparacionRegret(3)
+                new ReparacionRegret(3),
+                new ReparacionRegretRuido(2, 0.15),
+                new ReparacionRegretRuido(3, 0.20)
         );
 
         this.gestorDestruccion = new GestorPesosAdaptativo<>(operadoresDestruccion);
         this.gestorReparacion = new GestorPesosAdaptativo<>(operadoresReparacion);
-        this.busquedaLocal = new BusquedaLocalRVND();
+        this.busquedaLocal = new BusquedaLocalRVND(configuracion.getEpsilonMejoraRVND());
         this.solucionadorSPP = new SolucionadorParticionConjuntos();
     }
 
@@ -45,6 +54,8 @@ public class SolucionadorALNS {
         List<Ruta> poolRutas = new ArrayList<>();
         agregarRutasAlPool(poolRutas, solucionActual);
 
+        double temperatura = configuracion.getTemperaturaAceptacionSA();
+        double tasaEnfriamiento = configuracion.getTasaEnfriamientoSA();
         Random random = new Random();
         int iteracion = 1;
         int contadorSinMejora = 0;
@@ -52,12 +63,12 @@ public class SolucionadorALNS {
         while (iteracion <= configuracion.getMaxIteraciones() && contadorSinMejora < configuracion.getMaxSinMejora()) {
             Solucion vecina = solucionActual.copiar();
 
-            // 2. Seleccionar operadores de destrucción y reparación
+            // 2. Seleccionar operadores de destrucción y reparación (una sola invocación con ruleta adaptativa)
             int idxDestruccion = gestorDestruccion.seleccionarIndiceOperador();
             int idxReparacion = gestorReparacion.seleccionarIndiceOperador();
 
-            OperadorDestruccion opDestruccion = gestorDestruccion.seleccionarOperador();
-            OperadorReparacion opReparacion = gestorReparacion.seleccionarOperador();
+            OperadorDestruccion opDestruccion = gestorDestruccion.obtenerOperador(idxDestruccion);
+            OperadorReparacion opReparacion = gestorReparacion.obtenerOperador(idxReparacion);
 
             int q = configuracion.getMinCantidadDestruccion() + random.nextInt(configuracion.getMaxCantidadDestruccion() - configuracion.getMinCantidadDestruccion() + 1);
 
@@ -69,7 +80,7 @@ public class SolucionadorALNS {
 
             // Recalcular costos
             for (Ruta r : vecina.getRutas()) {
-                EvaluadorCostos.recalculareRuta(r, contexto.getMapa());
+                EvaluadorCostos.recalculareRuta(r, contexto.getMapa(), contexto.getConfiguracionOperacion());
             }
 
             // 4. Búsqueda Local Embebida (RVND)
@@ -96,7 +107,8 @@ public class SolucionadorALNS {
                 gestorReparacion.agregarPuntaje(idxReparacion, configuracion.getPuntajeMejorActual());
                 contadorSinMejora++;
             } else {
-                double probabilidadAceptacion = Math.exp((costoActual - costoVecina) / 100.0);
+                double delta = costoActual - costoVecina; // delta < 0
+                double probabilidadAceptacion = Math.exp(delta / Math.max(1e-6, temperatura));
                 if (random.nextDouble() < probabilidadAceptacion) {
                     solucionActual = vecina.copiar();
                     gestorDestruccion.agregarPuntaje(idxDestruccion, configuracion.getPuntajeAceptado());
@@ -104,6 +116,9 @@ public class SolucionadorALNS {
                 }
                 contadorSinMejora++;
             }
+
+            // Enfriamiento geométrico Simulated Annealing
+            temperatura = Math.max(1e-6, temperatura * tasaEnfriamiento);
 
             // 6. Recombinación Periódica de Partición de Conjuntos (SPP)
             if (iteracion % configuracion.getIntervaloSPP() == 0) {
@@ -130,7 +145,7 @@ public class SolucionadorALNS {
         Solucion sol = new Solucion();
         for (EstadoVehiculo ev : contexto.getVehiculosActivos()) {
             Ruta r = new Ruta(ev);
-            EvaluadorCostos.recalculareRuta(r, contexto.getMapa());
+            EvaluadorCostos.recalculareRuta(r, contexto.getMapa(), contexto.getConfiguracionOperacion());
             sol.getRutas().add(r);
         }
 

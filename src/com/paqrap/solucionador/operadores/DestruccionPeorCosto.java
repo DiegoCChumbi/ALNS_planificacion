@@ -23,7 +23,7 @@ public class DestruccionPeorCosto implements OperadorDestruccion {
             for (Pedido p : pedidos) {
                 Ruta rutaTemporal = ruta.copiar();
                 rutaTemporal.getPedidosAsignados().remove(p);
-                EvaluadorCostos.recalculareRuta(rutaTemporal, contexto.getMapa());
+                EvaluadorCostos.recalculareRuta(rutaTemporal, contexto.getMapa(), contexto.getConfiguracionOperacion());
 
                 double ahorroCosto = costoOriginal - rutaTemporal.getCostoTotal();
                 ahorros.put(p, ahorroCosto);
@@ -42,7 +42,7 @@ public class DestruccionPeorCosto implements OperadorDestruccion {
 
             for (Ruta r : solucion.getRutas()) {
                 if (r.getPedidosAsignados().remove(p)) {
-                    EvaluadorCostos.recalculareRuta(r, contexto.getMapa());
+                    EvaluadorCostos.recalculareRuta(r, contexto.getMapa(), contexto.getConfiguracionOperacion());
                     break;
                 }
             }

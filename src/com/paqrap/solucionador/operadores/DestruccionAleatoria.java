@@ -31,7 +31,7 @@ public class DestruccionAleatoria implements OperadorDestruccion {
 
             for (Ruta r : solucion.getRutas()) {
                 if (r.getPedidosAsignados().remove(p)) {
-                    EvaluadorCostos.recalculareRuta(r, contexto.getMapa());
+                    EvaluadorCostos.recalculareRuta(r, contexto.getMapa(), contexto.getConfiguracionOperacion());
                     break;
                 }
             }

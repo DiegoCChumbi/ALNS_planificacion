@@ -28,14 +28,25 @@ public class Solucion {
         return pedidosNoAsignados;
     }
 
-    public double calcularCostoTotal() {
+    public double calcularCostoTotal(double penalizacionNoAsignado) {
         double costo = 0.0;
         for (Ruta r : rutas) {
             costo += r.getCostoTotal();
         }
-        // Penalización por pedidos no asignados
-        costo += pedidosNoAsignados.size() * 10000.0;
+        costo += pedidosNoAsignados.size() * penalizacionNoAsignado;
         return costo;
+    }
+
+    public double calcularCostoTotal() {
+        return calcularCostoTotal(10000.0);
+    }
+
+    public double calcularDistanciaTotal() {
+        double dist = 0.0;
+        for (Ruta r : rutas) {
+            dist += r.getDistanciaTotal();
+        }
+        return dist;
     }
 
     @Override
