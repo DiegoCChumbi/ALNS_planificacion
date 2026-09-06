@@ -26,13 +26,13 @@ El sistema opera con tres tipos de unidades vehiculares con costos y cinemática
 
 ### 1.3 Restricciones Operativas y Laborales
 1. **Jornada Laboral Máxima**: El turno dura $8.0\text{ horas}$ continuas por conductor. Todo vehículo debe iniciar y retornar a su almacén base asignado antes de cumplirse las $8\text{ horas}$ de jornada:
-   $$t_{\text{retorno}} \le t_{\text{inicio\_turno}} + 8.0\text{ h}$$
+   $$t_{\text{retorno}} \le t_{\text{inicio}} + 8.0\text{ h}$$
 2. **Pausa Obligatoria de Refrigerio / Almuerzo**:
    - Duración fija: $1.0\text{ hora}$.
    - Ventana de programación legal: Debe tomarse obligatoriamente dentro del intervalo $[t_{\text{inicio}} + 1.0\text{h}, t_{\text{fin}} - 1.0\text{h}]$, típicamente alrededor de la mitad del turno ($t \approx 4.0\text{h}$).
 3. **Tiempo de Servicio en Cliente**: Cada entrega requiere exactamente $1.0\text{ hora}$ para descarga, verificación y firma de recepción.
 4. **Ventanas de Cumplimiento (SLA)**: Los pedidos disponen de plazos de $4\text{h}$, $8\text{h}$, $12\text{h}$, $18\text{h}$ o $36\text{h}$ desde su liberación:
-   $$t_{\text{llegada\_cliente}} \le t_{\text{max\_entrega}} = t_{\text{liberacion}} + \text{plazo}$$
+   $$t_{\text{llegada}} \le t_{\text{max}} = t_{\text{liberacion}} + \text{plazo}$$
 5. **Función Objetivo**:
    Minimizar el costo total de transporte más la penalización por pedidos no asignados:
    $$\min Z = \sum_{k \in V} c_k \cdot d_k + M \cdot |U|$$
@@ -231,7 +231,7 @@ El módulo de replanificación en tiempo real responde a disrupciones sobrevenid
 
 ### 5.2 Análisis de Colapso Logístico (`SimuladorColapsoLogistico`)
 - Somete la red a incrementos progresivos de demanda para determinar la capacidad de soporte de la flota.
-- **Punto de Ruptura**: Ocurre entre **80 y 110 pedidos por turno**, causado por el límite físico de 204 paquetes de capacidad vehicular agregada y la restricción temporal de 1 hora de servicio por cliente ($16 \text{ vehículos} \times 7\text{h útiles} \approx 112\text{ entregas teóricas máximas}$).
+- **Punto de Ruptura**: Ocurre entre **80 y 110 pedidos por turno**, causado por el límite físico de 204 paquetes de capacidad vehicular agregada y la restricción temporal de 1 hora de servicio por cliente (16 vehículos × 7h útiles ≈ 112 entregas teóricas máximas).
 
 ---
 
