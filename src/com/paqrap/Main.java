@@ -4,6 +4,7 @@ import com.paqrap.configuracion.*;
 import com.paqrap.modelo.*;
 import com.paqrap.solucionador.*;
 import com.paqrap.simulador.*;
+import com.paqrap.visor.*;
 import java.io.File;
 import java.util.*;
 
@@ -20,6 +21,13 @@ public class Main {
             } catch (Exception e) {
                 e.printStackTrace();
             }
+            return;
+        }
+
+        if (args.length > 0 && ("--visor".equalsIgnoreCase(args[0]) || "-v".equalsIgnoreCase(args[0])
+                || "--visor-web".equalsIgnoreCase(args[0]) || "--visor-swing".equalsIgnoreCase(args[0])
+                || "--gui".equalsIgnoreCase(args[0]))) {
+            lanzarVisor(args);
             return;
         }
 
@@ -227,7 +235,88 @@ public class Main {
         System.out.println("   • Total de Eventos Registrados : " + gestorLog.getEventos().size());
         System.out.println("   • Suite Comparativa ALNS vs IPSO (RNF-a / RNF-b):");
         System.out.println("     java -cp bin com.paqrap.Main --comparativa");
+        System.out.println("   • Visualizador Interactivo de Cuadrilla y Rutas (Swing & Web):");
+        System.out.println("     java -cp bin com.paqrap.Main --visor");
+        System.out.println("     java -cp bin com.paqrap.Main --visor-web  (http://localhost:8080)");
         System.out.println("===============================================================================");
+    }
+
+    private static void lanzarVisor(String[] args) {
+        String modo = args[0].toLowerCase();
+        String rutaConfig = (args.length > 1) ? args[1] : "config/configuracion.json";
+        File archivoConfig = new File(rutaConfig);
+        ConfiguracionSistema config;
+
+        try {
+            if (archivoConfig.exists()) {
+                config = ConfiguracionSistema.cargarDesdeArchivo(archivoConfig);
+            } else {
+                config = new ConfiguracionSistema();
+            }
+        } catch (Exception e) {
+            System.err.println("Error al cargar configuración para el visor: " + e.getMessage());
+            config = new ConfiguracionSistema();
+        }
+
+        File archivoLogJson = new File("logs/simulacion_movimientos.json");
+        List<EventoSimulacion> eventos = new ArrayList<>();
+        if (archivoLogJson.exists()) {
+            try {
+                System.out.println(">> Cargando eventos desde " + archivoLogJson.getPath() + "...");
+                eventos = CargadorDatosVisor.cargarEventosDesdeJson(archivoLogJson, config.getOperacion().getHoraInicioTurno());
+                System.out.println(">> " + eventos.size() + " eventos cargados exitosamente.");
+            } catch (Exception e) {
+                System.err.println("Advertencia al cargar eventos JSON: " + e.getMessage());
+            }
+        }
+
+        if (eventos.isEmpty()) {
+            System.out.println(">> No se encontraron eventos previos. Ejecutando simulación ALNS para generarlos...");
+            main(new String[]{rutaConfig});
+            try {
+                eventos = CargadorDatosVisor.cargarEventosDesdeJson(archivoLogJson, config.getOperacion().getHoraInicioTurno());
+            } catch (Exception e) {
+                System.err.println("Error cargando eventos generados: " + e.getMessage());
+            }
+        }
+
+        MotorEstadoVisor motorVisor = new MotorEstadoVisor(config, eventos);
+
+        boolean soloWeb = "--visor-web".equals(modo);
+        boolean soloSwing = "--visor-swing".equals(modo);
+
+        // Iniciar servidor web
+        if (!soloSwing) {
+            ServidorVisorWeb.iniciarSiNoActivo(motorVisor);
+            System.out.println("===============================================================================");
+            System.out.println("  🌐 Servidor Visor Web Activo en: http://localhost:" + ServidorVisorWeb.getPuertoActivo());
+            System.out.println("     Acceda desde cualquier navegador o dispositivo en la red local.");
+            System.out.println("===============================================================================");
+        }
+
+        // Iniciar Swing si está disponible y no es soloWeb
+        if (!soloWeb) {
+            if (java.awt.GraphicsEnvironment.isHeadless()) {
+                System.out.println(">> Entorno Headless detectado (sin display gráfico). Utilice el Visor Web en:");
+                System.out.println("   http://localhost:" + ServidorVisorWeb.getPuertoActivo());
+            } else {
+                System.out.println(">> Abriendo ventana del Visor Desktop (Swing)...");
+                List<EventoSimulacion> finalEventos = eventos;
+                ConfiguracionSistema finalConfig = config;
+                javax.swing.SwingUtilities.invokeLater(() -> {
+                    VisorCuadriculaSwing ventana = new VisorCuadriculaSwing(finalConfig, finalEventos);
+                    ventana.setVisible(true);
+                });
+            }
+        }
+
+        // Si es soloWeb o headless, mantener vivo el hilo
+        if (soloWeb || java.awt.GraphicsEnvironment.isHeadless()) {
+            System.out.println(">> Servidor en ejecución. Presione Enter o Ctrl+C para finalizar...");
+            try {
+                System.in.read();
+            } catch (Exception ignored) {}
+        }
     }
 
     private static void imprimirResumenSolucion(Solucion solucion, long tiempoMs, double penalizacionNoAsignado) {
