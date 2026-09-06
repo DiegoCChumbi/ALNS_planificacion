@@ -87,13 +87,13 @@ public class SimuladorColapsoLogistico {
             m.porcentajeAtencion = (numPedidos > 0) ? (m.pedidosAsignados * 100.0 / numPedidos) : 100.0;
 
             if (m.porcentajeAtencion >= 98.0) {
-                m.estadoOperativo = "OPERACIÓN FLUIDA (Verde)";
+                m.estadoOperativo = "OPERACIÓN FLUIDA";
                 m.causaCuelloBotella = "Ninguno. Flota con holgura suficiente.";
             } else if (m.porcentajeAtencion >= 80.0) {
-                m.estadoOperativo = "CONGESTIÓN / ALERTA (Ámbar)";
+                m.estadoOperativo = "CONGESTIÓN / ALERTA";
                 m.causaCuelloBotella = "Tiempo de atención al cliente (1h) satura jornadas de 8h.";
             } else {
-                m.estadoOperativo = "COLAPSO LOGÍSTICO (Rojo)";
+                m.estadoOperativo = "COLAPSO LOGÍSTICO";
                 if (paquetesDemandados > capTotalFlota) {
                     m.causaCuelloBotella = String.format("Demanda (%d paq) sobrepasó la capacidad física máxima de la flota (%d paq).",
                             paquetesDemandados, capTotalFlota);

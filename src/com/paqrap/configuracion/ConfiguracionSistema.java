@@ -14,7 +14,6 @@ public class ConfiguracionSistema {
     private List<TipoVehiculo> tiposVehiculo = new ArrayList<>();
     private List<EstadoVehiculo> flota = new ArrayList<>();
     private ConfiguracionALNS alns = new ConfiguracionALNS();
-    private ConfiguracionSemaforos semaforos = new ConfiguracionSemaforos();
     private ConfiguracionSimulacion simulacion = new ConfiguracionSimulacion();
     private List<Pedido> pedidosIniciales = new ArrayList<>();
     private List<Map<String, Object>> disrupciones = new ArrayList<>();
@@ -129,14 +128,7 @@ public class ConfiguracionSistema {
             config.alns.setEpsilonMejoraRVND(LectorJson.getDouble(mAlns, "epsilonMejoraRVND", 0.01));
         }
 
-        // 7. Semáforos
-        Map<String, Object> mSem = LectorJson.getObject(root, "semaforos");
-        if (!mSem.isEmpty()) {
-            config.semaforos.setHolguraVerdeHoras(LectorJson.getDouble(mSem, "holguraVerdeHoras", 2.0));
-            config.semaforos.setHolguraAmbarHoras(LectorJson.getDouble(mSem, "holguraAmbarHoras", 0.5));
-        }
-
-        // 8. Simulación
+        // 7. Simulación
         Map<String, Object> mSim = LectorJson.getObject(root, "simulacion");
         if (!mSim.isEmpty()) {
             config.simulacion.setDirectorioLogs(LectorJson.getString(mSim, "directorioLogs", "logs"));
@@ -198,7 +190,6 @@ public class ConfiguracionSistema {
     public List<TipoVehiculo> getTiposVehiculo() { return tiposVehiculo; }
     public List<EstadoVehiculo> getFlota() { return flota; }
     public ConfiguracionALNS getAlns() { return alns; }
-    public ConfiguracionSemaforos getSemaforos() { return semaforos; }
     public ConfiguracionSimulacion getSimulacion() { return simulacion; }
     public List<Pedido> getPedidosIniciales() { return pedidosIniciales; }
     public List<Map<String, Object>> getDisrupciones() { return disrupciones; }

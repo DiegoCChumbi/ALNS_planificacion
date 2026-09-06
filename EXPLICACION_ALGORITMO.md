@@ -55,7 +55,6 @@ src/com/paqrap/
 │   ├── ConfiguracionSistema.java     # Configuración agregada raíz
 │   ├── ConfiguracionEntorno.java     # Dimensiones de cuadrícula, km/cuadra
 │   ├── ConfiguracionOperacion.java   # Turno laboral, refrigerio, servicio
-│   ├── ConfiguracionSemaforos.java   # Umbrales verde/ámbar/rojo de holgura
 │   ├── ConfiguracionSimulacion.java  # Parámetros de logs y auditoría
 │   └── LectorJson.java               # Parser JSON recursivo en Java puro
 ├── modelo/                           # Entidades del dominio logístico

@@ -27,7 +27,7 @@ Implementado en **Java 27 puro** utilizando exclusivamente la biblioteca estánd
   - Análisis de curva de **colapso logístico** que determina el límite de saturación de la flota.
 - **Configuración Parametrizada por JSON**:
   - Parser propio en Java puro (`LectorJson`) sin dependencias de librerías de terceros.
-  - Todos los parámetros de red, almacenes, flota, ALNS, semáforos y disrupciones configurables en `config/configuracion.json`.
+  - Todos los parámetros de red, almacenes, flota, ALNS y disrupciones configurables en `config/configuracion.json`.
 
 ---
 
@@ -107,10 +107,6 @@ El archivo JSON centraliza todos los parámetros del sistema:
     "temperaturaAceptacionSA": 100.0,
     "tasaEnfriamientoSA": 0.995
   },
-  "semaforos": {
-    "holguraVerdeHoras": 2.0,
-    "holguraAmbarHoras": 0.5
-  },
   "pedidosIniciales": [ ... ],
   "disrupciones": [ ... ]
 }
@@ -121,7 +117,7 @@ El archivo JSON centraliza todos los parámetros del sistema:
 ## 📊 Archivos de Registro y Auditoría
 
 Cada ejecución genera automáticamente registros detallados en la carpeta `logs/`:
-- **`logs/simulacion_movimientos.log`**: Registro cronológico en texto plano con marcas de tiempo, reloj simulado (`07:00:00`), eventos de despacho, movimientos esquina a esquina, estados de semáforos, refrigerios y alertas viales.
+- **`logs/simulacion_movimientos.log`**: Registro cronológico en texto plano con marcas de tiempo, reloj simulado (`07:00:00`), eventos de despacho, movimientos esquina a esquina, refrigerios y alertas viales.
 - **`logs/simulacion_movimientos.json`**: Registro estructurado en formato JSON con la totalidad de los eventos y coordenadas para auditoría o procesamiento posterior.
 
 ---

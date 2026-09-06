@@ -190,7 +190,6 @@ public class MotorSimulacion {
                 double tiempoFinServicio = tiempoActual + tiempoServicio;
                 boolean aTiempo = (tiempoActual <= pedido.getTiempoMaximoEntrega());
                 double holgura = pedido.getTiempoMaximoEntrega() - tiempoActual;
-                String colorSemaforo = configuracion.getSemaforos().determinarColor(holgura);
 
                 tiempoActual = Math.min(tiempoFinServicio, tiempoFinMax);
                 cargaActual -= pedido.getCantidad();
@@ -207,8 +206,8 @@ public class MotorSimulacion {
                         pedido.getId(),
                         destino.getX(),
                         destino.getY(),
-                        String.format("Finalizó entrega de %s | Estado: %s [Semáforo: %s] (Plazo límite: %.1fh, Margen: %+.2fh)",
-                                pedido.getId(), aTiempo ? "A TIEMPO (CUMPLE)" : "TARDÍO (DEMORA)", colorSemaforo, pedido.getTiempoMaximoEntrega(), holgura),
+                        String.format("Finalizó entrega de %s | Estado: %s (Plazo límite: %.1fh, Margen: %+.2fh)",
+                                pedido.getId(), aTiempo ? "A TIEMPO (CUMPLE)" : "TARDÍO (DEMORA)", pedido.getTiempoMaximoEntrega(), holgura),
                         String.format("Carga remanente en vehículo: %d/%d paq.", cargaActual, tipoVehiculo.getCapacidad())
                 ));
             }

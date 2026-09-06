@@ -67,8 +67,6 @@ public class Main {
         System.out.printf(" • ALNS Parámetros  : maxIter=%d, maxSinMejora=%d, reac=%.2f, SPP=%d, SA_Temp=%.1f\n",
                 config.getAlns().getMaxIteraciones(), config.getAlns().getMaxSinMejora(), config.getAlns().getFactorReaccion(),
                 config.getAlns().getIntervaloSPP(), config.getAlns().getTemperaturaAceptacionSA());
-        System.out.printf(" • Semáforos        : Verde >= %.1fh, Ámbar >= %.1fh, Rojo < %.1fh\n",
-                config.getSemaforos().getHolguraVerdeHoras(), config.getSemaforos().getHolguraAmbarHoras(), config.getSemaforos().getHolguraAmbarHoras());
         System.out.printf(" • Cartera Pedidos  : %d pedidos iniciales cargados\n", config.getPedidosIniciales().size());
         System.out.println("-------------------------------------------------------------------------------\n");
 

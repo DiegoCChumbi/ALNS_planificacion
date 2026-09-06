@@ -97,10 +97,6 @@
     "pesoTiempoShaw": 2.0,
     "epsilonMejoraRVND": 0.01
   },
-  "semaforos": {
-    "holguraVerdeHoras": 2.0,
-    "holguraAmbarHoras": 0.5
-  },
   "simulacion": {
     "directorioLogs": "logs",
     "archivoLogTexto": "simulacion_movimientos.log",
