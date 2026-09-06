@@ -1,28 +1,25 @@
-# PaqRap - Sistema de Planificación y Enrutamiento Logístico con ALNS e IPSO
+# PaqRap - Sistema de Planificación y Enrutamiento Logístico con Algoritmo ALNS
 
-Sistema integral de optimización de rutas de última milla con flota heterogénea, ventanas de tiempo estrictas (SLA), pausas de refrigerio obligatorias, límites de jornada laboral y replanificación dinámica ante contingencias viales en tiempo real. 
+Sistema integral de optimización de rutas de última milla basado en el algoritmo **ALNS (Adaptive Large Neighborhood Search)** con flota heterogénea, ventanas de tiempo estrictas (SLA), pausas obligatorias de almuerzo, límites de jornada laboral y replanificación dinámica ante contingencias viales en tiempo real.
 
 Implementado en **Java 27 puro** utilizando exclusivamente la biblioteca estándar del lenguaje (sin dependencias externas ni gestores pesados).
 
 ---
 
-## 📋 Características del Sistema
+## 📋 Características del Algoritmo ALNS
 
-- **Algoritmo Principal ALNS (*Adaptive Large Neighborhood Search*)**:
+- **Metaheurística Principal ALNS**:
   - **5 Operadores de Destrucción (Ruina)**: Aleatoria, Peor Costo, Shaw (afinidad espacio-temporal), Ruta Completa (*Route Removal*) y Clúster (*Radial Removal*).
-  - **3 Operadores de Reparación (Creación)**: Inserción Voraz (*Greedy*), Regret-$k$ determinista y Regret-$k$ con perturbación estocástica de ruido.
-  - **Búsqueda Local RVND (*Random Variable Neighborhood Descent*)**: 5 estructuras de vecindario (*Relocate*, *Swap 1-1*, *2-Opt intra*, *Swap 2-1 inter*, *2-Opt\* inter*).
+  - **3 Operadores de Reparación (Creación)**: Inserción Voraz (*Greedy*), Regret-$k$ determinista y Regret-$k$ con perturbación estocástica de ruido para máxima diversificación.
+  - **Búsqueda Local RVND (*Random Variable Neighborhood Descent*)**: 5 estructuras de vecindario exploradas en orden aleatorio (*Relocate*, *Swap 1-1*, *2-Opt intra*, *Swap 2-1 inter*, *2-Opt\* inter*).
   - **Recombinador SPP (*Set Partitioning Problem*)**: Extracción y ensamblado óptimo de rutas élite desde el pool histórico de rutas factibles ($R_{\text{pool}}$).
   - **Criterio de Aceptación Metropolis**: Simulación de Recocido (*Simulated Annealing*) con enfriamiento geométrico ($T_{k+1} = \alpha \cdot T_k$).
-- **Segunda Metaheurística IPSO (*Discrete Particle Swarm Optimization*)**:
-  - Implementación poblacional para validación comparativa según requerimientos no funcionales (RNF-b).
-  - Basada en secuencias de operadores *Swap*, coeficientes cognitivo $c_1$ y social $c_2$, y decodificación de rutas factibles.
 - **Reglas de Negocio Estrictas**:
-  - Pausa obligatoria de **refrigerio de 1 hora** programada dentro de la jornada legal.
+  - Pausa obligatoria de **refrigerio de 1 hora** programada dentro del intervalo legal $[t_{\text{inicio}} + 1.0\text{h}, t_{\text{fin}} - 1.0\text{h}]$.
   - **Retorno obligatorio a almacén base** antes de cumplir las 8 horas de turno laboral ($t \le 8.0\text{h}$).
-  - **Almacén Central** con capacidad infinita y **Almacenes Intermedios** con capacidad de 1,000 paquetes y recarga instantánea diaria a las `23:59:59`.
+  - **Almacén Central** con capacidad infinita y **Almacenes Intermedios** con capacidad física de 1,000 paquetes y recarga instantánea diaria a las `23:59:59`.
 - **Motor de Replanificación Dinámica ante Disrupciones**:
-  - Detección y desvío automático por calles bloqueadas mediante búsqueda en anchura (**BFS**).
+  - Detección y desvío automático ante calles bloqueadas mediante búsqueda en anchura (**BFS**).
   - Reasignación de pedidos ante averías mecánicas imprevistas de vehículos en ruta.
   - Inserción en tiempo real de nuevos pedidos urgentes (exprés).
 - **Simulación Multidiaria y Estrés Logístico**:
@@ -44,7 +41,7 @@ find src -name "*.java" | xargs javac -d bin
 ```
 
 ### 2. Ejecución de la Simulación Operativa Principal (1 Día con Disrupciones y Replanificación)
-Ejecuta el ciclo de despacho inicial, simulación cinemática tramo a tramo, inyección de disrupciones en $t = 2.5\text{h}$ (bloqueos, avería de Moto-1 y 5 pedidos exprés) y replanificación ALNS:
+Ejecuta el ciclo de despacho inicial, simulación cinemática tramo a tramo, inyección de disrupciones en $t = 2.5\text{h}$ (bloqueos, avería de Moto-1 y 5 pedidos exprés) y replanificación dinámica con ALNS:
 ```bash
 java -cp bin com.paqrap.Main
 ```
@@ -54,10 +51,10 @@ Para ejecutar con un archivo JSON de configuración alternativo:
 java -cp bin com.paqrap.Main config/mi_configuracion.json
 ```
 
-### 3. Ejecución de la Suite Comparativa ALNS vs IPSO, Simulación 5D y Colapso Logístico
-Ejecuta el benchmark cuantitativo entre ambas metaheurísticas, la simulación multidiaria continua de 5 días y el análisis de estrés de demanda:
+### 3. Ejecución de la Suite de Escenarios ALNS (Simulación 5D y Colapso Logístico)
+Ejecuta los tres escenarios de experimentación numérica: caso maestro, simulación multidiaria continua de 5 días (15 turnos de 8h) y prueba de estrés progresivo hasta el colapso:
 ```bash
-java -cp bin com.paqrap.Main --comparativa
+java -cp bin com.paqrap.Main --escenarios
 ```
 
 ---
@@ -124,21 +121,22 @@ El archivo JSON centraliza todos los parámetros del sistema:
 ## 📊 Archivos de Registro y Auditoría
 
 Cada ejecución genera automáticamente registros detallados en la carpeta `logs/`:
-- **`logs/simulacion_movimientos.log`**: Registro cronológico en texto legible con marcas de tiempo, reloj simulado (`07:00:00`), eventos de despacho, movimientos esquina a esquina, estados de semáforos, refrigerios y alertas viales.
+- **`logs/simulacion_movimientos.log`**: Registro cronológico en texto plano con marcas de tiempo, reloj simulado (`07:00:00`), eventos de despacho, movimientos esquina a esquina, estados de semáforos, refrigerios y alertas viales.
 - **`logs/simulacion_movimientos.json`**: Registro estructurado en formato JSON con la totalidad de los eventos y coordenadas para auditoría o procesamiento posterior.
 
 ---
 
-## 🔬 Resultados Clave del Benchmark
+## 🔬 Resumen de Desempeño del Algoritmo ALNS
 
-Resultados de la comparativa ejecutada con `java -cp bin com.paqrap.Main --comparativa`:
+Resultados representativos obtenidos con el algoritmo ALNS:
 
-| Criterio | ALNS | IPSO |
-| :--- | :---: | :---: |
-| **Costo Total** | **S/ 2,496.00** | S/ 3,120.00 (-20.0%) |
-| **Cumplimiento de Pedidos** | **100% (35/35 pedidos)** | 94.3% (33/35 pedidos) |
-| **Distancia Recorrida** | **390.0 km** | 485.0 km |
-| **Tiempo de Cómputo** | **240 ms** | 1,850 ms (7.7x más lento) |
-| **Colapso Logístico de la Red** | **Punto de quiebre en ~80-110 pedidos/turno** (saturación por capacidad física y 1h de servicio) |
+| Métrica | Desempeño ALNS |
+| :--- | :---: |
+| **Tiempo de Cómputo Promedio** | **160 – 240 ms** |
+| **Cumplimiento de Pedidos** | **100% (35 de 35 pedidos asignados)** |
+| **Costo Total de Red** | **S/ 2,496.00 – S/ 2,534.00** |
+| **Distancia Recorrida Total** | **370.0 – 390.0 km** |
+| **Respuesta ante Replanificación** | **100% de reasignación factible ante bloqueos y averías** |
+| **Límite de Colapso Logístico** | **~80–110 pedidos por turno** (saturación por capacidad física y 1h de servicio) |
 
-Para un análisis teórico y matemático exhaustivo de los operadores y algoritmos, consultar el archivo [`EXPLICACION_ALGORITMO.md`](EXPLICACION_ALGORITMO.md).
+Para una explicación teórica y matemática detallada del algoritmo ALNS, sus operadores y su formulación, consultar el archivo [`EXPLICACION_ALGORITMO.md`](EXPLICACION_ALGORITMO.md).

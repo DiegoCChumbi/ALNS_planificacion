@@ -105,7 +105,7 @@ public class SimuladorCincoDias {
                     ctxTurno.agregarPedido(ped);
                 }
 
-                // Resolver rutas con el planificador (ALNS o IPSO)
+                // Resolver rutas con el planificador ALNS
                 Solucion solucionTurno = planificador.resolver(ctxTurno);
 
                 // Procesar entregas de este turno

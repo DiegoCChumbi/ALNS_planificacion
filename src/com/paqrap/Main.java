@@ -14,7 +14,8 @@ public class Main {
         System.out.println("      PaqRap - Sistema ALNS Parametrizado mediante Archivo JSON                ");
         System.out.println("===============================================================================\n");
 
-        if (args.length > 0 && ("--comparativa".equalsIgnoreCase(args[0]) || "-c".equalsIgnoreCase(args[0]))) {
+        if (args.length > 0 && ("--escenarios".equalsIgnoreCase(args[0]) || "-e".equalsIgnoreCase(args[0])
+                || "--comparativa".equalsIgnoreCase(args[0]) || "-c".equalsIgnoreCase(args[0]))) {
             try {
                 ExperimentoComparativo.main(args.length > 1 ? new String[]{args[1]} : new String[]{"config/configuracion.json"});
             } catch (Exception e) {
@@ -225,8 +226,8 @@ public class Main {
         System.out.println("   • Archivo Log de Texto Plano   : " + gestorLog.getArchivoLogTexto().getPath());
         System.out.println("   • Archivo Log en JSON          : " + gestorLog.getArchivoLogJson().getPath());
         System.out.println("   • Total de Eventos Registrados : " + gestorLog.getEventos().size());
-        System.out.println("   • Suite Comparativa ALNS vs IPSO (RNF-a / RNF-b):");
-        System.out.println("     java -cp bin com.paqrap.Main --comparativa");
+        System.out.println("   • Evaluación de Escenarios ALNS (5 Días y Colapso Logístico):");
+        System.out.println("     java -cp bin com.paqrap.Main --escenarios");
         System.out.println("===============================================================================");
     }
 

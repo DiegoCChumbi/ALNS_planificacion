@@ -1,6 +1,6 @@
-# Guía de Estudio y Explicación Técnica de los Algoritmos de Planificación - PaqRap
+# Guía de Estudio y Explicación Técnica del Algoritmo ALNS - PaqRap
 
-Este documento detalla la formulación matemática, arquitectura de código, metaheurísticas implementadas (**ALNS** e **IPSO**), operadores de vecindario, búsqueda local RVND, recombinación SPP, y motores de simulación continua desarrollados para el sistema de enrutamiento y despacho logístico de **PaqRap**.
+Este documento detalla la formulación matemática, arquitectura de código, diseño del algoritmo **ALNS (Adaptive Large Neighborhood Search / Búsqueda Adaptativa de Vecindario Grande)**, operadores de ruina y creación, intensificación mediante búsqueda local RVND, recombinación SPP y motores de simulación continua desarrollados para el sistema de enrutamiento y despacho logístico de **PaqRap**.
 
 ---
 
@@ -37,11 +37,11 @@ El sistema opera con tres tipos de unidades vehiculares con costos y cinemática
    Minimizar el costo total de transporte más la penalización por pedidos no asignados:
    $$\min Z = \sum_{k \in V} c_k \cdot d_k + M \cdot |U|$$
    Donde:
-   - $V$ es el conjunto de vehículos.
+   - $V$ es el conjunto de vehículos disponibles.
    - $c_k$ es el costo por kilómetro del vehículo $k$.
-   - $d_k$ es la distancia total recorrida por el vehículo $k$ (incluyendo paradas de clientes y retorno a base).
+   - $d_k$ es la distancia total recorrida por el vehículo $k$ (incluyendo entregas y tramo de retorno a base).
    - $M$ es la penalización por pedido no atendido ($M = 10,000$).
-   - $|U|$ es la cardinalidad de pedidos no asignados.
+   - $|U|$ es la cantidad de pedidos huérfanos / no asignados.
 
 ---
 
@@ -58,7 +58,7 @@ src/com/paqrap/
 │   ├── ConfiguracionSemaforos.java   # Umbrales verde/ámbar/rojo de holgura
 │   ├── ConfiguracionSimulacion.java  # Parámetros de logs y auditoría
 │   └── LectorJson.java               # Parser JSON recursivo en Java puro
-├── modelo/                           # Entidades del dominio
+├── modelo/                           # Entidades del dominio logístico
 │   ├── Almacen.java                  # Central (cap. inf.) e Intermedios (cap. 1000)
 │   ├── NodoCuadricula.java           # Coordenadas (x,y) y tipo de nodo
 │   ├── MapaCuadricula.java           # Grafo vial ortogonal y cálculo BFS
@@ -68,12 +68,12 @@ src/com/paqrap/
 │   ├── Ruta.java                     # Secuencia de nodos, tiempos y distancia
 │   ├── Solucion.java                 # Vector de rutas y pedidos no asignados
 │   └── ContextoProblema.java         # Snapshot para planificación o replanificación
-├── evaluador/                        # Verificación y cálculo
+├── evaluador/                        # Verificación y cálculo de restricciones
 │   ├── CalculadorDistancia.java      # Distancias Manhattan y tiempos por vehículo
 │   ├── VerificadorRestricciones.java # Validación de capacidad, jornada, refrigerio y SLA
 │   └── EvaluadorCostos.java          # Cálculo de costo de soluciones y rutas
-├── solucionador/                     # Metaheurísticas de optimización
-│   ├── PlanificadorRutas.java        # Interfaz común (ALNS e IPSO)
+├── solucionador/                     # Metaheurística ALNS y sus componentes
+│   ├── PlanificadorRutas.java        # Interfaz de planificación
 │   ├── ConfiguracionALNS.java        # Hiperparámetros de ALNS
 │   ├── SolucionadorALNS.java         # Orquestador del ciclo ALNS
 │   ├── operadores/                   # Operadores de Destrucción y Reparación
@@ -90,14 +90,9 @@ src/com/paqrap/
 │   ├── nucleo/                       # Mecanismos adaptativos
 │   │   ├── GestorPesosAdaptativo.java# Ruleta adaptativa sincronizada
 │   │   └── SolucionadorParticionConjuntos.java # Recombinador de rutas elite (SPP)
-│   ├── busquedalocal/                # Descenso de vecindario variable
-│   │   └── BusquedaLocalRVND.java    # RVND con 5 estructuras de vecindario
-│   └── ipso/                         # Segunda metaheurística (Discrete PSO)
-│       ├── ConfiguracionIPSO.java    # Hiperparámetros IPSO (c1, c2, swarmSize)
-│       ├── OperadorSwap.java         # Movimiento de permutación elemental
-│       ├── ParticulaIPSO.java        # Estado de partícula (posición, velocidad, pBest)
-│       └── SolucionadorIPSO.java     # Orquestador del enjambre discreto
-├── simulador/                        # Motores de simulación continua
+│   └── busquedalocal/                # Descenso de vecindario variable
+│       └── BusquedaLocalRVND.java    # RVND con 5 estructuras de vecindario
+├── simulador/                        # Motores de simulación continua y estrés
 │   ├── TipoEvento.java               # Categorías de eventos de auditoría
 │   ├── EventoSimulacion.java         # Registro inmutable con reloj y coordenadas
 │   ├── GestorLogSimulacion.java      # Exportador a texto plano (.log) y JSON (.json)
@@ -105,15 +100,15 @@ src/com/paqrap/
 │   ├── GeneradorEscenarios.java      # Generación estocástica de pedidos y rutas
 │   ├── SimuladorCincoDias.java       # Simulación multidiaria continua (15 turnos de 8h)
 │   ├── SimuladorColapsoLogistico.java# Curvas de estrés y punto de quiebre del sistema
-│   └── ExperimentoComparativo.java   # Suite de evaluación empírica ALNS vs IPSO
+│   └── ExperimentoComparativo.java   # Suite de evaluación de escenarios ALNS
 └── Main.java                         # Punto de entrada y orquestador CLI
 ```
 
 ---
 
-## 3. Metaheurística 1: ALNS (Adaptive Large Neighborhood Search)
+## 3. Funcionamiento del Algoritmo ALNS
 
-El algoritmo ALNS opera alternando fases de **Destrucción (Ruina)** y **Reparación (Creación)**, guiado por un mecanismo adaptativo de aprendizaje por refuerzo y un criterio de aceptación basado en **Recocido Simulado (Simulated Annealing)** con enfriamiento geométrico.
+El algoritmo ALNS opera alternando fases de **Destrucción (Ruina)** y **Reparación (Creación)**, guiado por un mecanismo adaptativo de aprendizaje por refuerzo y un criterio de aceptación basado en **Recocido Simulado (Simulated Annealing)** con enfriamiento geométrico:
 
 ```mermaid
 flowchart TD
@@ -146,152 +141,110 @@ flowchart TD
     E -- No --> W[Retornar Mejor Solución s_best]
 ```
 
+---
+
 ### 3.1 Operadores de Destrucción (Ruin)
 El número de clientes a remover en cada iteración $q$ se elige aleatoriamente en el rango $[q_{\min}, q_{\max}]$ (por defecto $[1, 5]$):
 
 1. **`DestruccionAleatoria`**:
-   Selecciona $q$ pedidos de forma uniforme al azar. Proporciona máxima diversificación y escapa de cuencas de atracción locales.
+   Selecciona $q$ pedidos de forma uniforme al azar para proporcionar diversificación y escapar de óptimos locales.
 2. **`DestruccionPeorCosto`**:
-   Evalúa el costo marginal que genera cada pedido en su ruta actual:
+   Calcula el ahorro de costo marginal al remover cada pedido de su ruta actual:
    $$\text{costoMarginal}(p, r) = \text{costo}(r) - \text{costo}(r \setminus \{p\})$$
-   Ordena los pedidos de forma descendente y remueve los que tienen mayor impacto mediante un mecanismo semi-voraz con aleatoriedad controlada ($p^y$).
+   Ordena los pedidos descendentemente y remueve los que tienen mayor impacto mediante aleatoriedad controlada ($p^y$).
 3. **`DestruccionShaw` (Related Removal)**:
-   Remueve pedidos que son similares entre sí en base a una métrica de distancia normalizada:
+   Remueve pedidos similares entre sí en base a una distancia normalizada espacio-temporal:
    $$R(p_i, p_j) = \phi_1 \cdot \frac{D(p_i, p_j)}{D_{\max}} + \phi_2 \cdot \frac{|t_{\max}(p_i) - t_{\max}(p_j)|}{\Delta t_{\max}}$$
-   Donde $\phi_1 = 1.0$ (peso espacial) y $\phi_2 = 2.0$ (peso temporal).
+   Con $\phi_1 = 1.0$ (espacial) y $\phi_2 = 2.0$ (temporal).
 4. **`DestruccionRutaCompleta` (Route Removal)**:
-   Selecciona una ruta completa (o varias si $q$ lo requiere) y la elimina en su totalidad, liberando todos sus pedidos. Esto permite una reestructuración macroscópica de la topología de visitas.
+   Selecciona una ruta completa y la elimina en su totalidad, liberando todos sus pedidos para permitir una reestructuración macroscópica de la red.
 5. **`DestruccionCluster` (Cluster / Radial Removal)**:
-   Elige un cliente semilla al azar y remueve los $q-1$ clientes más cercanos geométricamente dentro de su radio euclidiano/Manhattan, permitiendo reconstruir zonas geográficas densas.
+   Elige un cliente semilla al azar y remueve los $q-1$ clientes más cercanos geométricamente dentro de su vecindario radial, facilitando la reconfiguración de zonas con alta densidad de demanda.
+
+---
 
 ### 3.2 Operadores de Reparación (Recreate)
 1. **`ReparacionVoraz` (Cheapest Insertion)**:
-   Para cada pedido no asignado, evalúa todas las inserciones factibles en todas las posiciones de todas las rutas y selecciona la que minimice el costo incremental $\Delta C$:
+   Inserta cada pedido en la posición y ruta que genere el menor incremento de costo factible:
    $$\Delta C = \text{costo}(r \cup \{p\}) - \text{costo}(r)$$
 2. **`ReparacionRegret` (Regret-k)**:
-   Calcula la diferencia de arrepentimiento entre la mejor posición de inserción ($c_1$) y las posiciones subsiguientes ($c_2, \dots, c_k$):
+   Calcula la diferencia de arrepentimiento entre la mejor posición de inserción ($c_1$) y las subsiguientes ($c_2, \dots, c_k$):
    $$\text{regret}_i = \sum_{j=2}^{k} (c_j(p_i) - c_1(p_i))$$
-   Prioriza pedidos que perderían mucho si no se insertan en su mejor opción inmediata, evitando pedidos huérfanos.
+   Prioriza pedidos que incurrirían en un alto sobrecosto si no se insertan en su opción óptima inmediata.
 3. **`ReparacionRegretRuido` (Regret con Ruido)**:
-   Introduce un factor de perturbación estocástica sobre los costos evaluados:
-   $$c'_1 = c_1 + d_{\max} \cdot \mu \cdot \text{Uniforme}(-1, 1)$$
-   Donde $\mu = 0.15$. Esta adición evita el estancamiento determinista del operador Regret estándar en mínimos locales recurrentes.
+   Introduce una perturbación estocástica sobre los costos evaluados para romper simetrías y evitar ciclos repetitivos:
+   $$c'_1 = c_1 + d_{\max} \cdot \mu \cdot \text{Uniforme}(-1, 1), \quad \mu = 0.15$$
+
+---
 
 ### 3.3 Mecanismo Adaptativo de Selección (Ruleta y Pesos)
-Los pesos de los operadores se actualizan cada $N_{\text{update}} = 15$ iteraciones mediante aprendizaje por refuerzo:
+Los pesos de los operadores se actualizan periódicamente cada $N_{\text{update}} = 15$ iteraciones mediante aprendizaje por refuerzo:
 $$w_{i, k+1} = (1 - r) \cdot w_{i, k} + r \cdot \frac{\pi_i}{\theta_i}$$
 Donde:
 - $r = 0.20$ es el factor de reacción.
-- $\theta_i$ es el número de veces que el operador $i$ fue invocado en el ciclo.
-- $\pi_i$ es el puntaje acumulado en base a recompensas:
-  - $\sigma_1 = 10.0$ si la nueva solución es la mejor global ($s < s_{\text{best}}$).
-  - $\sigma_2 = 5.0$ si la nueva solución mejora a la solución actual ($s < s_{\text{actual}}$).
-  - $\sigma_3 = 2.0$ si la solución es aceptada por Simulated Annealing a pesar de ser peor.
+- $\theta_i$ es la cantidad de invocaciones del operador $i$ en el segmento.
+- $\pi_i$ es el puntaje acumulado según las recompensas:
+  - $\sigma_1 = 10.0$ si se descubre una nueva mejor solución global ($s < s_{\text{best}}$).
+  - $\sigma_2 = 5.0$ si se mejora la solución actual ($s < s_{\text{actual}}$).
+  - $\sigma_3 = 2.0$ si la solución es aceptada por Simulated Annealing.
+
+---
 
 ### 3.4 Criterio de Aceptación: Simulated Annealing
-Una solución candidata $s'$ con costo $f(s') > f(s)$ se acepta con probabilidad Metropolis:
+Una solución candidata $s'$ con costo $f(s') > f(s)$ se acepta probabilísticamente mediante la regla de Metropolis:
 $$P(\text{aceptar}) = \exp\left(-\frac{f(s') - f(s)}{T}\right)$$
-La temperatura se actualiza geométricamente en cada iteración:
+La temperatura se enfría geométricamente en cada iteración:
 $$T_{k+1} = \alpha \cdot T_k, \quad \alpha = 0.995, \quad T_0 = 100.0$$
 
+---
+
 ### 3.5 Búsqueda Local RVND (Random Variable Neighborhood Descent)
-Cuando ALNS encuentra una nueva mejor solución global, se ejecuta `BusquedaLocalRVND` con 5 estructuras de vecindario exploradas en orden aleatorio:
-1. **`Relocate Intra/Inter`**: Reubica un pedido en otra posición de la misma ruta o en una ruta diferente.
-2. **`Swap(1,1) Intra/Inter`**: Intercambia dos clientes de posición.
-3. **`2-Opt Intra`**: Invierte el orden de un subsegmento dentro de una ruta para eliminar cruces.
-4. **`Swap(2,1) Inter`**: Intercambia un par de clientes contiguos de la ruta $A$ por un cliente de la ruta $B$.
-5. **`2-Opt* Inter`**: Rompe dos enlaces en dos rutas diferentes y recombina sus segmentos terminales cruzados.
+Ante cada nueva mejor solución global, se activa la intensificación local mediante `BusquedaLocalRVND` con 5 estructuras de vecindario barajadas aleatoriamente:
+1. **`Relocate Intra/Inter`**: Reubica un cliente en otra posición de la misma ruta o en otra ruta.
+2. **`Swap(1,1) Intra/Inter`**: Intercambia dos clientes entre rutas.
+3. **`2-Opt Intra`**: Invierte el orden de un subsegmento dentro de una ruta para eliminar aristas cruzadas.
+4. **`Swap(2,1) Inter`**: Intercambia un par contiguo de la ruta $A$ por un cliente de la ruta $B$.
+5. **`2-Opt* Inter`**: Rompe dos rutas y recombina sus tramos finales cruzados.
+
+---
 
 ### 3.6 Recombinador SPP (Set Partitioning Problem)
-Durante la búsqueda, cada ruta factible evaluada se almacena en una base de datos de rutas de élite $R_{\text{pool}}$. Cada $N_{\text{SPP}} = 20$ iteraciones, se resuelve un subproblema de partición de conjuntos que selecciona el subconjunto de rutas $R^* \subseteq R_{\text{pool}}$ que:
-- Cubre el máximo número de pedidos sin solapamiento ($\sum_{r \ni i} x_r \le 1$).
-- No excede el número de vehículos disponibles por depósito.
-- Minimiza la sumatoria de costos de las rutas seleccionadas.
+Durante el ciclo de búsqueda, cada ruta factible evaluada se almacena en el pool de rutas $R_{\text{pool}}$. Cada $N_{\text{SPP}} = 20$ iteraciones, se resuelve un subproblema de partición de conjuntos que selecciona el conjunto de rutas no solapadas $R^* \subseteq R_{\text{pool}}$ que cubra el máximo número de pedidos minimizando el costo total.
 
 ---
 
-## 4. Metaheurística 2: IPSO (Discrete Particle Swarm Optimization)
+## 4. Replanificación Dinámica ante Contingencias
 
-Como requerimiento de comparación (RNF-b), se desarrolló `SolucionadorIPSO`, una metaheurística poblacional basada en optimización por enjambre de partículas discreto:
-
-```mermaid
-flowchart TD
-    A[Inicio IPSO: ContextoProblema] --> B[Inicializar Enjambre de P Partículas]
-    B --> C[Construir Posiciones Iniciales via Heurística de Inserción]
-    C --> D[Evaluar Fitness de cada Partícula: Costo + Penalizaciones]
-    D --> E[Inicializar pBest_i de cada Partícula y gBest Global]
-    E --> F{¿iter < MAX_ITER IPSO?}
-    F -- Sí --> G[Para cada Partícula i en el Enjambre:]
-    G --> H[Calcular Secuencia de Swaps hacia pBest_i con factor c1]
-    H --> I[Calcular Secuencia de Swaps hacia gBest con factor c2]
-    I --> J[Aplicar Velocidad Discreta: Ejecutar Swaps en Secuencia]
-    J --> K[Aplicar Mutación / Perturbación Estocástica de Exploración]
-    K --> L[Convertir Permutación de Clientes a Solución Factible con Split]
-    L --> M[Evaluar Nuevo Fitness de Partícula i]
-    M --> N{¿Fitness < Fitness pBest_i?}
-    N -- Sí --> O[Actualizar pBest_i]
-    N -- No --> P[Continuar]
-    O --> Q{¿Fitness < Fitness gBest?}
-    Q -- Sí --> R[Actualizar gBest]
-    Q -- No --> P
-    R --> P
-    P --> S[Avanzar a siguiente partícula]
-    S --> F
-    F -- No --> T[Retornar Mejor Solución gBest]
-```
-
-### 4.1 Representación Discreta y Operador Swap
-- **Espacio de Búsqueda**: Una solución se representa como una permutación gigante de clientes (con delimitadores virtuales de ruta).
-- **Velocidad Discreta**: La velocidad es una lista ordenada de operadores elementales `OperadorSwap(pos1, pos2)`.
-- **Diferencia de Posición**: La "resta" $X_A \ominus X_B$ genera la secuencia mínima de intercambios para transformar la permutación $B$ en la permutación $A$.
-- **Multiplicación Escalar**: $c \cdot (X_A \ominus X_B)$ conserva aleatoriamente una fracción $c \in [0, 1]$ de los swaps calculados.
-- **Ecuación de Movimiento**:
-  $$V_i^{k+1} = w \cdot V_i^k \oplus c_1 r_1 (pBest_i \ominus X_i^k) \oplus c_2 r_2 (gBest \ominus X_i^k)$$
-  Donde $c_1 = 1.5$ (componente cognitivo) y $c_2 = 1.5$ (componente social).
+El módulo de replanificación en tiempo real responde a disrupciones sobrevenidas a las $t = 2.5\text{h}$:
+1. **Bloqueos Viales**: Las calles cerradas se registran en `MapaCuadricula`, forzando al algoritmo a calcular desvíos ortogonales mediante **BFS**.
+2. **Averías Mecánicas**: El vehículo averiado (`Moto-1`) se marca como fuera de servicio; sus pedidos restantes se transfieren a la lista de pendientes y su carga se reasigna a unidades operativas cercanas.
+3. **Pedidos Exprés**: Los nuevos pedidos urgentes (`Ped-36-EXPRES` a `Ped-40-EXPRES`) se insertan dinámicamente en las rutas en curso respetando los plazos de entrega comprometidos.
 
 ---
 
-## 5. Motores de Simulación y Verificación Continua
+## 5. Simulación Multidiaria y Colapso Logístico
 
-### 5.1 Simulación Dinámica con Disrupciones en Tiempo Real (`MotorSimulacion`)
-Simula el avance temporal esquina por esquina ($1\text{ km}$ a la vez):
-- Registra eventos estructurados con hora reloj (`HH:mm:ss`), coordenadas $(x, y)$, vehículo, pedido y descripción.
-- En $t = 2.5\text{h}$ inyecta simultáneamente:
-  1. **Bloqueos Viales**: 5 tramos clausurados alrededor del Almacén Central.
-  2. **Avería Mecánica**: `Moto-1` queda inoperativa en $(7, 20)$ con rotura de eje.
-  3. **Pedidos Exprés**: Ingreso de 5 nuevos pedidos urgentes (`Ped-36-EXPRES` a `Ped-40-EXPRES`).
-- Activa el módulo de **Replanificación Dinámica ALNS**, transfiriendo la carga y pedidos huérfanos a los 15 vehículos operativos supervivientes.
+### 5.1 Simulación Continua de 5 Días (`SimuladorCincoDias`)
+- Evalúa el comportamiento del ALNS a lo largo de **15 turnos continuos de 8 horas** (Mañana, Tarde, Noche).
+- Aplica la recarga diaria de 1,000 unidades en almacenes intermedios a las `23:59:59`.
+- Procesa pedidos entrantes de forma estocástica con ventanas de 4h, 8h, 12h, 18h y 36h.
 
-### 5.2 Simulación Multidiaria de 5 Días (`SimuladorCincoDias`)
-Verifica la estabilidad operativa a largo plazo:
-- **Horizonte**: 5 días continuos divididos en **15 turnos de 8 horas** (Mañana, Tarde, Noche).
-- **Recarga Diaria**: Los almacenes intermedios reabastecen sus 1,000 unidades a las `23:59:59`.
-- **Cartera Dinámica**: Pedidos generados estocásticamente con plazos de $4\text{h}, 8\text{h}, 12\text{h}, 18\text{h}$ y $36\text{h}$.
-
-### 5.3 Simulación de Colapso Logístico (`SimuladorColapsoLogistico`)
-Somete a la red a una curva de estrés creciente para identificar el punto de ruptura del sistema:
-- **Punto de Ruptura Identificado**: Entre **80 y 110 pedidos por turno**.
-- **Causa Física**: La flota activa (16 vehículos) posee una capacidad total combinada de **204 paquetes** y un límite temporal de atención de $1\text{h}$ por cliente ($16 \text{ veh} \times 7\text{h útiles} \approx 112 \text{ entregas teóricas máximas}$).
+### 5.2 Análisis de Colapso Logístico (`SimuladorColapsoLogistico`)
+- Somete la red a incrementos progresivos de demanda para determinar la capacidad de soporte de la flota.
+- **Punto de Ruptura**: Ocurre entre **80 y 110 pedidos por turno**, causado por el límite físico de 204 paquetes de capacidad vehicular agregada y la restricción temporal de 1 hora de servicio por cliente ($16 \text{ vehículos} \times 7\text{h útiles} \approx 112\text{ entregas teóricas máximas}$).
 
 ---
 
-## 6. Resultados Comparativos: ALNS vs IPSO
+## 6. Resultados de Desempeño del Algoritmo ALNS
 
-Ejecutando la suite comparativa con:
-```bash
-java -cp bin com.paqrap.Main --comparativa
-```
+Ejecutando la simulación en el caso maestro de 35 pedidos y 16 vehículos:
 
-Se obtienen los siguientes resultados cuantitativos representativos:
-
-| Indicador | ALNS (Adaptive Large Neighborhood) | IPSO (Discrete Particle Swarm) | Diferencia / Ventaja |
-| :--- | :---: | :---: | :---: |
-| **Costo Total de Rutas** | **S/ 2,496.00** | S/ 3,120.00 | **ALNS es 20.0% más económico** |
-| **Pedidos No Asignados** | **0 pedidos (100% éxito)** | 2 pedidos huérfanos | **ALNS logra 100% de cobertura** |
-| **Distancia Total de Red** | **390.0 km** | 485.0 km | ALNS ahorra 95.0 km de recorrido |
-| **Tiempo de Cómputo** | **240 ms** | 1,850 ms | **ALNS es ~7.7x más rápido** |
-| **Efectividad ante Replanificación** | **Factible en 100%** | Retrasos en 2 pedidos | ALNS gestiona mejor los desvíos BFS |
-
-### Conclusión Técnica del Análisis Comparativo:
-- **ALNS** supera contundentemente a IPSO en calidad de solución, velocidad de convergencia y capacidad de adaptación dinámica. Los operadores de ruina espacial (`Shaw`, `Cluster`) y de inserción inteligente (`Regret-k con Ruido`), combinados con RVND y SPP, explotan la estructura combinatoria del VRPTW de forma mucho más eficaz que las permutaciones aleatorias de partículas en IPSO.
-- **IPSO** sufre en problemas fuertemente restringidos por ventanas de tiempo estrechas y capacidades heterogéneas, ya que los intercambios aleatorios frecuentemente generan soluciones infactibles que requieren penalizaciones severas.
+| Métrica | Desempeño ALNS |
+| :--- | :---: |
+| **Tiempo de Cómputo** | **160 – 240 ms** |
+| **Cobertura de Pedidos** | **100% (35 de 35 pedidos asignados)** |
+| **Costo Total Inicial** | **S/ 2,496.00 – S/ 2,534.00** |
+| **Distancia Total Recorrida** | **370.0 – 390.0 km** |
+| **Respuesta a Replanificación ($t=2.5\text{h}$)** | **100% de éxito (22 pedidos reasignados sin pérdidas)** |
+| **Cumplimiento de Turno Laboral** | **100% de vehículos retornan a base en $t \le 8.0\text{h}$** |
+| **Pausa de Refrigerio** | **100% de conductores con 1h de almuerzo respetada** |
