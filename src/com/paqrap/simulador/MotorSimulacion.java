@@ -79,11 +79,14 @@ public class MotorSimulacion {
             ));
 
             double duracionRefrigerio = configuracion.getOperacion().getDuracionRefrigerioHoras();
-            double tiempoInicioRefrigerio = configuracion.getOperacion().getDuracionTurnoHoras() / 2.0;
+            double tiempoInicioRefrigerio = vehiculo.getTiempoInicioTurno()
+                    + configuracion.getOperacion().getDuracionTurnoHoras() / 2.0;
             boolean refrigerioTomado = vehiculo.isRefrigerioTomado();
 
             for (Pedido pedido : ruta.getPedidosAsignados()) {
                 if (tiempoActual >= tiempoFinMax) break;
+                tiempoActual = Math.max(tiempoActual, pedido.getTiempoLiberacion());
+                mapa.actualizarBloqueosTemporales(tiempoActual);
 
                 // Pausa obligatoria de refrigerio si llega la hora del almuerzo antes del viaje
                 if (!refrigerioTomado && tiempoActual >= tiempoInicioRefrigerio && tiempoActual < tiempoFinMax) {
@@ -120,12 +123,37 @@ public class MotorSimulacion {
                 if (tiempoActual >= tiempoFinMax) break;
 
                 NodoCuadricula destino = pedido.getDestino();
-                List<NodoCuadricula> camino = mapa.getCaminoMasCorto(nodoActual, destino);
+                List<NodoCuadricula> camino = mapa.getCaminoMasCorto(nodoActual, destino, tiempoActual);
+                if (camino.isEmpty()) {
+                    eventosFase.add(new EventoSimulacion(
+                            tiempoActual,
+                            horaBase,
+                            TipoEvento.MOVIMIENTO_TRAMO,
+                            vehiculo.getId(),
+                            pedido.getId(),
+                            nodoActual.getX(),
+                            nodoActual.getY(),
+                            "No existe camino disponible hacia " + destino.getId(),
+                            "Pedido pendiente por bloqueo vial"));
+                    break;
+                }
 
                 // Movimiento esquina por esquina
+                boolean viajeInterrumpido = false;
                 for (int i = 0; i < camino.size() - 1; i++) {
                     NodoCuadricula origenPaso = camino.get(i);
                     NodoCuadricula destinoPaso = camino.get(i + 1);
+                    mapa.actualizarBloqueosTemporales(tiempoActual);
+                    if (mapa.estaAristaBloqueada(origenPaso.getX(), origenPaso.getY(),
+                            destinoPaso.getX(), destinoPaso.getY(), tiempoActual)) {
+                        camino = mapa.getCaminoMasCorto(origenPaso, destino, tiempoActual);
+                        if (camino.isEmpty()) {
+                            viajeInterrumpido = true;
+                            break;
+                        }
+                        i = -1;
+                        continue;
+                    }
 
                     double distPaso = kmPorCuadra;
                     double tiempoPaso = distPaso / velocidad;
@@ -137,6 +165,7 @@ public class MotorSimulacion {
                     if (tiempoActual > tiempoFinMax) {
                         tiempoActual = tiempoFinMax;
                         nodoActual = destinoPaso;
+                        viajeInterrumpido = true;
                         break;
                     }
 
@@ -152,12 +181,10 @@ public class MotorSimulacion {
                                     origenPaso.getX(), origenPaso.getY(), destinoPaso.getX(), destinoPaso.getY(), destino.getId()),
                             String.format(Locale.US, "Dist: %.1f km | Costo: S/ %.2f | Carga: %d", distanciaRecorrida, costoAcum, cargaActual)
                     ));
+                    nodoActual = destinoPaso;
                 }
 
-                if (tiempoActual >= tiempoFinMax) {
-                    nodoActual = destino;
-                    break;
-                }
+                if (viajeInterrumpido || tiempoActual >= tiempoFinMax) break;
 
                 nodoActual = destino;
 
@@ -260,10 +287,18 @@ public class MotorSimulacion {
                             String.format(Locale.US, "Distancia previa: %.1f km | Descarga completa", distanciaRecorrida)
                     ));
 
-                    List<NodoCuadricula> caminoRetorno = mapa.getCaminoMasCorto(nodoActual, base);
+                    mapa.actualizarBloqueosTemporales(tiempoActual);
+                    List<NodoCuadricula> caminoRetorno = mapa.getCaminoMasCorto(nodoActual, base, tiempoActual);
                     for (int i = 0; i < caminoRetorno.size() - 1; i++) {
                         NodoCuadricula origenPaso = caminoRetorno.get(i);
                         NodoCuadricula destinoPaso = caminoRetorno.get(i + 1);
+                        mapa.actualizarBloqueosTemporales(tiempoActual);
+                        if (mapa.estaAristaBloqueada(origenPaso.getX(), origenPaso.getY(),
+                                destinoPaso.getX(), destinoPaso.getY(), tiempoActual)) {
+                            caminoRetorno = mapa.getCaminoMasCorto(origenPaso, base, tiempoActual);
+                            i = -1;
+                            continue;
+                        }
 
                         double distPaso = kmPorCuadra;
                         double tiempoPaso = distPaso / velocidad;
@@ -290,6 +325,7 @@ public class MotorSimulacion {
                                         origenPaso.getX(), origenPaso.getY(), destinoPaso.getX(), destinoPaso.getY(), base.getId()),
                                 String.format(Locale.US, "Dist: %.1f km | Costo: S/ %.2f | Retorno a Base", distanciaRecorrida, costoAcum)
                         ));
+                        nodoActual = destinoPaso;
                     }
 
                     if (tiempoActual <= tiempoFinMax && nodoActual.equals(base)) {
@@ -333,6 +369,7 @@ public class MotorSimulacion {
 
     public void registrarBloqueoCalle(double tiempo, int x1, int y1, int x2, int y2) {
         mapa.bloquearArista(x1, y1, x2, y2);
+        mapa.actualizarBloqueosTemporales(tiempo);
         gestorLog.registrarEvento(new EventoSimulacion(
                 tiempo,
                 configuracion.getOperacion().getHoraInicioTurno(),

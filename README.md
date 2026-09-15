@@ -2,7 +2,7 @@
 
 Sistema integral de optimización de rutas de última milla basado en el algoritmo **ALNS (Adaptive Large Neighborhood Search)** con flota heterogénea, ventanas de tiempo estrictas (SLA), pausas obligatorias de almuerzo, límites de jornada laboral y replanificación dinámica ante contingencias viales en tiempo real.
 
-Implementado en **Java 27 puro** utilizando exclusivamente la biblioteca estándar del lenguaje (sin dependencias externas ni gestores pesados).
+Implementado en **Java 21 puro** utilizando exclusivamente la biblioteca estándar del lenguaje (sin dependencias externas ni gestores pesados).
 
 ---
 
@@ -37,7 +37,7 @@ Implementado en **Java 27 puro** utilizando exclusivamente la biblioteca estánd
 El código compila directamente con el compilador estándar de OpenJDK:
 ```bash
 mkdir -p bin
-find src -name "*.java" | xargs javac -d bin
+javac --release 21 -encoding UTF-8 -d bin $(find src -type f -name '*.java' | sort)
 ```
 
 ### 2. Ejecución de la Simulación Operativa Principal (1 Día con Disrupciones y Replanificación)
@@ -51,7 +51,115 @@ Para ejecutar con un archivo JSON de configuración alternativo:
 java -cp bin com.paqrap.Main config/mi_configuracion.json
 ```
 
-### 3. Ejecución de la Suite de Escenarios ALNS (Simulación 5D y Colapso Logístico)
+### 3. Ejecución con datos externos de ventas y bloqueos
+
+Los lectores del paquete `com.paqrap.entrada` aceptan tanto un archivo individual
+como una carpeta. Las ventas tienen el formato
+`DDdHHhMMm:x,y,cliente,cantidad,sla`; el tiempo se convierte a horas absolutas
+(el día 1 comienza en `t=0`). Los bloqueos usan
+`inicio-fin:x1,y1,x2,y2,...`; cada par consecutivo de puntos define una arista
+horizontal o vertical y permanece activo en `[inicio, fin)`.
+
+```bash
+java -cp bin com.paqrap.Main \
+  --inputs Inputs/ventas.v20260909/ventas.202601.txt \
+  --bloqueos Inputs/bloqueos.v20260909/bloqueo.2601.txt \
+  --config config/configuracion.json
+```
+
+También se pueden pasar las carpetas completas. Para una prueba rápida o una
+ejecución exploratoria se puede limitar el número de pedidos y el horizonte:
+
+```bash
+java -cp bin com.paqrap.Main \
+  --inputs Inputs/ventas.v20260909 --bloqueos Inputs/bloqueos.v20260909 \
+  --max-pedidos 20 --hasta-horas 48
+```
+
+Opciones disponibles en el modo externo:
+
+| Opción | Descripción |
+|---|---|
+| `--inputs` o `--ventas` | Archivo individual o carpeta de ventas |
+| `--bloqueos` | Archivo individual o carpeta de bloqueos |
+| `--config` | Configuración JSON opcional para flota, almacenes y ALNS |
+| `--max-pedidos` | Límite de pedidos para pruebas rápidas |
+| `--max-iteraciones` | Límite de iteraciones del ALNS |
+| `--hasta-horas` | Fin del horizonte de simulación en horas |
+
+El modo externo informa los archivos y registros leídos, dimensiona
+`MapaCuadricula` para cubrir las coordenadas máximas y activa o desactiva las
+aristas temporales durante la simulación. La planificación se ejecuta por
+ventanas consecutivas de la duración configurada del turno; no se envía todo
+el histórico a una única instancia ALNS. En cada ventana se consideran los
+pedidos liberados, pendientes y todavía compatibles con su SLA. El modo JSON
+anterior permanece disponible sin cambios.
+
+Durante una ejecución se muestran trazas de progreso en consola con el inicio
+de cada turno, la construcción de la solución inicial, las iteraciones ALNS
+relevantes, el costo y los pedidos asignados/no asignados. Esto permite
+distinguir una ejecución activa de una que se haya detenido.
+
+#### Formato de ventas
+
+Cada línea representa un pedido:
+
+```text
+01d01h30m:56,30,c4910,02,36
+```
+
+El formato es:
+
+```text
+DDdHHhMMm:x,y,cliente,cantidad,sla
+```
+
+El tiempo se convierte a horas absolutas desde el inicio del día 1. La cantidad
+y el SLA deben ser positivos. Los archivos pueden incluir líneas vacías o
+comentarios iniciados con `#`.
+
+#### Formato de bloqueos
+
+Cada línea representa un bloqueo temporal:
+
+```text
+01d02h22m-01d04h42m:25,45,45,45,45,40
+```
+
+El formato es:
+
+```text
+inicio-fin:x1,y1,x2,y2,...
+```
+
+Cada par consecutivo de coordenadas define una arista horizontal o vertical.
+El bloqueo se aplica en el intervalo `[inicio, fin)`, incluyendo el instante de
+inicio y excluyendo el instante final. Las líneas inválidas producen un error
+explícito indicando archivo y número de línea.
+
+#### Modos de carga
+
+Los lectores aceptan tres formas de operación:
+
+- **Histórico:** se proporciona una carpeta y se procesan sus archivos ordenados.
+- **Archivo individual:** se proporciona un archivo de ventas y otro de bloqueos.
+- **Incremental:** la API `RegistroEntradas` permite registrar eventos uno a uno:
+
+```java
+RegistroEntradas registro = new RegistroEntradas();
+registro.registrarPedido(pedido);
+registro.registrarBloqueo(bloqueoTemporal);
+```
+
+Los datos externos se mantienen separados de la configuración JSON. El JSON
+define la flota, almacenes, reglas operativas y parámetros ALNS; las ventas y
+bloqueos se incorporan mediante `--inputs` y `--bloqueos`.
+
+Las coordenadas de los inputs pueden superar el mapa de ejemplo de 30x30. En el
+modo externo el mapa se dimensiona automáticamente para cubrir pedidos,
+bloqueos y almacenes.
+
+### 4. Ejecución de la Suite de Escenarios ALNS (Simulación 5D y Colapso Logístico)
 Ejecuta los tres escenarios de experimentación numérica: caso maestro, simulación multidiaria continua de 5 días (15 turnos de 8h) y prueba de estrés progresivo hasta el colapso:
 ```bash
 java -cp bin com.paqrap.Main --escenarios

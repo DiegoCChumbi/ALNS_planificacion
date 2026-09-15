@@ -57,7 +57,8 @@ public class ExperimentoComparativo {
 
         SimuladorCincoDias sim5D = new SimuladorCincoDias();
         System.out.println(">> Ejecutando Simulación Multidiaria 5D con ALNS...");
-        SimuladorCincoDias.Resultado5Dias res5D_ALNS = sim5D.ejecutar(config, alns, 18);
+        SimuladorCincoDias.Resultado5Dias res5D_ALNS = sim5D.ejecutar(
+                config, alns, config.getSimulacion().getPedidosPorTurnoMultidiario());
 
         System.out.printf("\n%-22s | %-12s | %-12s | %-14s | %-14s | %-12s\n",
                 "Métrica 5D (ALNS)", "Tiempo (ms)", "Atendidos", "Costo 5 Días", "Distancia 5D", "% A Tiempo");

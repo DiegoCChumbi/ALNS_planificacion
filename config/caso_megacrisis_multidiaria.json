@@ -1,0 +1,91 @@
+{
+  "entorno": {
+    "anchoMapa": 60,
+    "altoMapa": 60,
+    "kmPorCuadra": 1.0,
+    "callesDobleSentido": true,
+    "penalizacionInalcanzable": 999999.0
+  },
+  "operacion": {
+    "duracionTurnoHoras": 8.0,
+    "horaInicioTurno": 7.0,
+    "tiempoServicioClienteHoras": 1.0,
+    "duracionRefrigerioHoras": 1.0,
+    "margenRefrigerioHoras": 1.0,
+    "tiempoCargaAlmacenHoras": 0.0,
+    "penalizacionPedidoNoAsignado": 10000.0
+  },
+  "almacenes": {
+    "central": {
+      "id": "AlmacenCentral",
+      "x": 30,
+      "y": 30,
+      "capacidad": -1
+    },
+    "intermedios": [
+      {
+        "id": "AlmacenInter-1",
+        "x": 12,
+        "y": 16,
+        "capacidad": 1000,
+        "horaRecarga": "23:59:59"
+      },
+      {
+        "id": "AlmacenInter-2",
+        "x": 48,
+        "y": 44,
+        "capacidad": 1000,
+        "horaRecarga": "23:59:59"
+      }
+    ]
+  },
+  "tiposVehiculo": [
+    { "id": "AUTO", "nombre": "Auto", "capacidad": 24, "velocidadKmH": 40.0, "costoPorKm": 8.0 },
+    { "id": "MOTO", "nombre": "Moto", "capacidad": 8, "velocidadKmH": 25.0, "costoPorKm": 6.0 },
+    { "id": "BICI", "nombre": "Bicicleta", "capacidad": 4, "velocidadKmH": 12.0, "costoPorKm": 3.0 }
+  ],
+  "flota": [
+    { "id": "Auto-1", "tipo": "AUTO", "almacenInicio": "AlmacenCentral" },
+    { "id": "Auto-2", "tipo": "AUTO", "almacenInicio": "AlmacenCentral" },
+    { "id": "Auto-5", "tipo": "AUTO", "almacenInicio": "AlmacenCentral" },
+    { "id": "Moto-1", "tipo": "MOTO", "almacenInicio": "AlmacenCentral" },
+    { "id": "Moto-2", "tipo": "MOTO", "almacenInicio": "AlmacenCentral" },
+    { "id": "Bici-1", "tipo": "BICI", "almacenInicio": "AlmacenCentral" },
+    { "id": "Bici-2", "tipo": "BICI", "almacenInicio": "AlmacenCentral" },
+    { "id": "Auto-3", "tipo": "AUTO", "almacenInicio": "AlmacenInter-1" },
+    { "id": "Moto-3", "tipo": "MOTO", "almacenInicio": "AlmacenInter-1" },
+    { "id": "Moto-5", "tipo": "MOTO", "almacenInicio": "AlmacenInter-1" },
+    { "id": "Bici-3", "tipo": "BICI", "almacenInicio": "AlmacenInter-1" },
+    { "id": "Bici-5", "tipo": "BICI", "almacenInicio": "AlmacenInter-1" },
+    { "id": "Auto-4", "tipo": "AUTO", "almacenInicio": "AlmacenInter-2" },
+    { "id": "Auto-6", "tipo": "AUTO", "almacenInicio": "AlmacenInter-2" },
+    { "id": "Moto-4", "tipo": "MOTO", "almacenInicio": "AlmacenInter-2" },
+    { "id": "Bici-4", "tipo": "BICI", "almacenInicio": "AlmacenInter-2" }
+  ],
+  "alns": {
+    "maxIteraciones": 350,
+    "maxSinMejora": 90,
+    "intervaloActualizacion": 15,
+    "intervaloSPP": 20,
+    "factorReaccion": 0.2,
+    "minCantidadDestruccion": 1,
+    "maxCantidadDestruccion": 5,
+    "puntajeMejorGlobal": 10.0,
+    "puntajeMejorActual": 5.0,
+    "puntajeAceptado": 2.0,
+    "temperaturaAceptacionSA": 100.0,
+    "tasaEnfriamientoSA": 0.995,
+    "pesoDistanciaShaw": 1.0,
+    "pesoTiempoShaw": 2.0,
+    "epsilonMejoraRVND": 0.01
+  },
+  "simulacion": {
+    "directorioLogs": "logs",
+    "archivoLogTexto": "megacrisis_multidiaria.log",
+    "archivoLogJson": "megacrisis_multidiaria.json",
+    "imprimirEnConsola": false,
+    "pedidosPorTurnoMultidiario": 10
+  },
+  "pedidosIniciales": [],
+  "disrupciones": []
+}
