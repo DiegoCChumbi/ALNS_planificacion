@@ -1,10 +1,12 @@
 package com.paqrap;
 
 import com.paqrap.configuracion.*;
+import com.paqrap.entrada.*;
 import com.paqrap.modelo.*;
 import com.paqrap.solucionador.*;
 import com.paqrap.simulador.*;
 import java.io.File;
+import java.nio.file.Path;
 import java.util.*;
 
 public class Main {
@@ -13,6 +15,12 @@ public class Main {
         System.out.println("===============================================================================");
         System.out.println("      PaqRap - Sistema ALNS Parametrizado mediante Archivo JSON                ");
         System.out.println("===============================================================================\n");
+
+        EntradaCli entradaCli = EntradaCli.parsear(args);
+        if (entradaCli != null) {
+            ejecutarConEntradas(entradaCli);
+            return;
+        }
 
         if (args.length > 0 && ("--escenarios".equalsIgnoreCase(args[0]) || "-e".equalsIgnoreCase(args[0])
                 || "--comparativa".equalsIgnoreCase(args[0]) || "-c".equalsIgnoreCase(args[0]))) {
@@ -247,8 +255,8 @@ public class Main {
                 totalAsignados += r.getPedidosAsignados().size();
                 distanciaTotal += r.getDistanciaTotal();
             }
-        }
 
+        }
         System.out.printf("Vehículos con Rutas    : %d de %d\n", vehiculosConRuta, solucion.getRutas().size());
         System.out.printf("Total Pedidos Atendidos: %d\n", totalAsignados);
         System.out.printf("Distancia Total de Red : %.1f km\n", distanciaTotal);
@@ -265,6 +273,172 @@ public class Main {
                 }
                 System.out.println("FIN");
             }
+        }
+    }
+
+    private static void ejecutarConEntradas(EntradaCli cli) {
+        try {
+            File archivoConfig = new File(cli.configuracion);
+            ConfiguracionSistema config = archivoConfig.isFile()
+                    ? ConfiguracionSistema.cargarDesdeArchivo(archivoConfig)
+                    : new ConfiguracionSistema();
+            RegistroEntradas entradas = LectorEntradas.cargar(cli.ventas, cli.bloqueos);
+            List<Pedido> pedidos = new ArrayList<>(entradas.getPedidos());
+            if (cli.maxPedidos > 0 && pedidos.size() > cli.maxPedidos) {
+                pedidos = new ArrayList<>(pedidos.subList(0, cli.maxPedidos));
+            }
+            config.getPedidosIniciales().clear();
+            config.getPedidosIniciales().addAll(pedidos);
+
+            MapaCuadricula mapa = config.construirMapa(entradas);
+            for (BloqueoTemporal bloqueo : entradas.getBloqueos()) mapa.agregarBloqueoTemporal(bloqueo);
+
+            System.out.printf("Entradas externas: %d archivo(s) de ventas, %d de bloqueos | "
+                            + "%d pedidos, %d bloqueos temporales%n",
+                    entradas.getArchivosVentasLeidos(), entradas.getArchivosBloqueosLeidos(),
+                    pedidos.size(), entradas.getCantidadBloqueos());
+            System.out.printf("Mapa dimensionado automáticamente: %dx%d (máximos de entradas: %d,%d)%n",
+                    mapa.getAncho(), mapa.getAlto(), entradas.getMaximaX(), entradas.getMaximaY());
+
+            if (cli.maxIteraciones > 0) {
+                config.getAlns().setMaxIteraciones(cli.maxIteraciones);
+                config.getAlns().setMaxSinMejora(Math.min(config.getAlns().getMaxSinMejora(), cli.maxIteraciones));
+            }
+            SolucionadorALNS solucionador = new SolucionadorALNS(config.getAlns());
+            GestorLogSimulacion gestorLog = new GestorLogSimulacion(
+                    config.getSimulacion().getDirectorioLogs(),
+                    config.getSimulacion().isImprimirEnConsola());
+            MotorSimulacion motor = new MotorSimulacion(mapa, gestorLog, config);
+            double hasta = cli.hastaHoras;
+            if (hasta <= 0) {
+                hasta = pedidos.stream().mapToDouble(Pedido::getTiempoLiberacion)
+                        .max().orElse(0.0) + config.getOperacion().getDuracionTurnoHoras();
+            }
+            double duracionTurno = config.getOperacion().getDuracionTurnoHoras();
+            Set<String> completados = motor.getPedidosCompletados();
+            long inicioTotal = System.currentTimeMillis();
+            int turnosProcesados = 0;
+            int totalPedidosCandidatos = 0;
+            int totalPlanificados = 0;
+
+            for (double inicioTurno = 0.0; inicioTurno < hasta; inicioTurno += duracionTurno) {
+                double finTurno = Math.min(inicioTurno + duracionTurno, hasta);
+                ContextoProblema contexto = new ContextoProblema(inicioTurno, mapa, config.getOperacion());
+                contexto.agregarAlmacen(config.getAlmacenCentral());
+                for (NodoCuadricula almacen : config.getAlmacenesIntermedios()) {
+                    contexto.agregarAlmacen(almacen);
+                }
+                for (EstadoVehiculo original : config.getFlota()) {
+                    EstadoVehiculo vehiculo = new EstadoVehiculo(
+                            original.getId(), original.getTipo(), original.getAlmacenBase(),
+                            original.getAlmacenBase(), inicioTurno, inicioTurno);
+                    contexto.agregarVehiculo(vehiculo);
+                }
+                for (Pedido pedido : pedidos) {
+                    if (!completados.contains(pedido.getId())
+                            && pedido.getTiempoLiberacion() < finTurno
+                            && pedido.getTiempoMaximoEntrega() >= inicioTurno) {
+                        contexto.agregarPedido(pedido);
+                    }
+                }
+                if (contexto.getPedidosPendientes().isEmpty()) {
+                    continue;
+                }
+
+                turnosProcesados++;
+                totalPedidosCandidatos += contexto.getPedidosPendientes().size();
+                System.out.printf(">> Iniciando turno t=%.1f-%.1fh con %d pedidos candidatos%n",
+                        inicioTurno, finTurno, contexto.getPedidosPendientes().size());
+                long inicioTurnoMs = System.currentTimeMillis();
+                Solucion solucion = solucionador.resolver(contexto);
+                totalPlanificados += solucion.getRutas().stream()
+                        .mapToInt(ruta -> ruta.getPedidosAsignados().size()).sum();
+                System.out.printf("Turno t=%.1f-%.1fh: %d pedidos candidatos, %d asignados, %d no asignados%n",
+                        inicioTurno, finTurno, contexto.getPedidosPendientes().size(),
+                        totalPedidosEnRutas(solucion), solucion.getPedidosNoAsignados().size());
+                motor.simularRutas(solucion, inicioTurno, finTurno);
+                System.out.printf("  ALNS: %d ms | completados acumulados: %d%n",
+                        System.currentTimeMillis() - inicioTurnoMs, completados.size());
+            }
+            long finTotal = System.currentTimeMillis();
+            motor.registrarFinSimulacion(hasta, String.format(Locale.US,
+                    "Simulación con entradas externas | Pedidos: %d | Completados: %d | Bloqueos: %d",
+                    pedidos.size(), completados.size(), entradas.getCantidadBloqueos()));
+            System.out.printf(Locale.US,
+                    "Simulación ejecutada hasta t=%.2fh; eventos: %d; completados: %d/%d; "
+                            + "tiempo total ALNS: %d ms%n",
+                    hasta, gestorLog.getEventos().size(), completados.size(), pedidos.size(),
+                    finTotal - inicioTotal);
+            System.out.println("\n==================== RESUMEN DE EJECUCIÓN ====================");
+            System.out.printf(Locale.US, "Horizonte simulado       : %.2f h%n", hasta);
+            System.out.printf("Turnos procesados         : %d%n", turnosProcesados);
+            System.out.printf("Pedidos cargados          : %d%n", pedidos.size());
+            System.out.printf("Pedidos candidatos        : %d%n", totalPedidosCandidatos);
+            System.out.printf("Asignaciones generadas   : %d%n", totalPlanificados);
+            System.out.printf("Pedidos completados       : %d%n", completados.size());
+            System.out.printf("Pedidos pendientes        : %d%n", Math.max(0, pedidos.size() - completados.size()));
+            System.out.printf("Bloqueos temporales       : %d%n", entradas.getCantidadBloqueos());
+            System.out.printf(Locale.US, "Cumplimiento completado  : %.1f%%%n",
+                    pedidos.isEmpty() ? 100.0 : completados.size() * 100.0 / pedidos.size());
+            System.out.printf("Pedidos no asignados únicos: %d%n",
+                    Math.max(0, pedidos.size() - completados.size()));
+            System.out.printf("Tiempo total de ejecución : %d ms%n", finTotal - inicioTotal);
+            System.out.println("Estado                    : EJECUCIÓN FINALIZADA");
+            System.out.println("===============================================================");
+        } catch (Exception e) {
+            System.err.println("Error cargando entradas externas: " + e.getMessage());
+            e.printStackTrace();
+        }
+    }
+
+    private static int totalPedidosEnRutas(Solucion solucion) {
+        return solucion.getRutas().stream()
+                .mapToInt(ruta -> ruta.getPedidosAsignados().size())
+                .sum();
+    }
+
+    private static final class EntradaCli {
+        private Path ventas;
+        private Path bloqueos;
+        private String configuracion = "config/configuracion.json";
+        private int maxPedidos;
+        private int maxIteraciones;
+        private double hastaHoras;
+
+        private static EntradaCli parsear(String[] args) {
+            boolean encontrado = false;
+            EntradaCli cli = new EntradaCli();
+            for (int i = 0; i < args.length; i++) {
+                String arg = args[i];
+                if ("--inputs".equals(arg) || "--ventas".equals(arg)) {
+                    cli.ventas = Path.of(valor(args, ++i, arg)); encontrado = true;
+                } else if ("--bloqueos".equals(arg)) {
+                    cli.bloqueos = Path.of(valor(args, ++i, arg)); encontrado = true;
+                } else if ("--config".equals(arg)) {
+                    cli.configuracion = valor(args, ++i, arg);
+                } else if ("--max-pedidos".equals(arg)) {
+                    cli.maxPedidos = Integer.parseInt(valor(args, ++i, arg));
+                    if (cli.maxPedidos < 1) throw new IllegalArgumentException("--max-pedidos debe ser positivo");
+                } else if ("--max-iteraciones".equals(arg)) {
+                    cli.maxIteraciones = Integer.parseInt(valor(args, ++i, arg));
+                    if (cli.maxIteraciones < 1) throw new IllegalArgumentException("--max-iteraciones debe ser positivo");
+                } else if ("--hasta-horas".equals(arg)) {
+                    cli.hastaHoras = Double.parseDouble(valor(args, ++i, arg));
+                    if (cli.hastaHoras <= 0) throw new IllegalArgumentException("--hasta-horas debe ser positivo");
+                } else if (arg.startsWith("--")) {
+                    throw new IllegalArgumentException("Opción desconocida: " + arg);
+                } else if (i == 0) {
+                    cli.configuracion = arg;
+                }
+            }
+            return encontrado ? cli : null;
+        }
+
+        private static String valor(String[] args, int indice, String opcion) {
+            if (indice >= args.length || args[indice].startsWith("--")) {
+                throw new IllegalArgumentException("Falta valor para " + opcion);
+            }
+            return args[indice];
         }
     }
 }

@@ -47,9 +47,20 @@ public class SolucionadorALNS implements PlanificadorRutas {
     }
 
     public Solucion resolver(ContextoProblema contexto) {
+        long inicioMs = System.currentTimeMillis();
+        System.out.printf("[ALNS] Inicio: %d pedidos, %d vehículos, marca temporal t=%.2fh%n",
+                contexto.getPedidosPendientes().size(),
+                contexto.getVehiculosActivos().size(),
+                contexto.getMarcaTiempoActual());
+
         // 1. Solución Inicial mediante inserción Regret-2
+        System.out.println("[ALNS] Construyendo solución inicial...");
         Solucion solucionActual = construirSolucionInicial(contexto);
         Solucion mejorSolucion = solucionActual.copiar();
+        System.out.printf("[ALNS] Solución inicial lista: %d asignados, %d no asignados (%d ms)%n",
+                contarPedidosAsignados(solucionActual),
+                solucionActual.getPedidosNoAsignados().size(),
+                System.currentTimeMillis() - inicioMs);
 
         List<Ruta> poolRutas = new ArrayList<>();
         agregarRutasAlPool(poolRutas, solucionActual);
@@ -61,6 +72,13 @@ public class SolucionadorALNS implements PlanificadorRutas {
         int contadorSinMejora = 0;
 
         while (iteracion <= configuracion.getMaxIteraciones() && contadorSinMejora < configuracion.getMaxSinMejora()) {
+            if (iteracion == 1 || iteracion % 10 == 0 || iteracion == configuracion.getMaxIteraciones()) {
+                System.out.printf("[ALNS] Iteración %d/%d | mejor costo S/ %.2f | sin mejora %d | %d ms%n",
+                        iteracion, configuracion.getMaxIteraciones(),
+                        mejorSolucion.calcularCostoTotal(),
+                        contadorSinMejora,
+                        System.currentTimeMillis() - inicioMs);
+            }
             Solucion vecina = solucionActual.copiar();
 
             // 2. Seleccionar operadores de destrucción y reparación (una sola invocación con ruleta adaptativa)
@@ -138,7 +156,20 @@ public class SolucionadorALNS implements PlanificadorRutas {
             iteracion++;
         }
 
+        System.out.printf("[ALNS] Fin: %d asignados, %d no asignados, costo S/ %.2f, %d ms%n",
+                contarPedidosAsignados(mejorSolucion),
+                mejorSolucion.getPedidosNoAsignados().size(),
+                mejorSolucion.calcularCostoTotal(),
+                System.currentTimeMillis() - inicioMs);
         return mejorSolucion;
+    }
+
+    private int contarPedidosAsignados(Solucion solucion) {
+        int total = 0;
+        for (Ruta ruta : solucion.getRutas()) {
+            total += ruta.getPedidosAsignados().size();
+        }
+        return total;
     }
 
     private Solucion construirSolucionInicial(ContextoProblema contexto) {

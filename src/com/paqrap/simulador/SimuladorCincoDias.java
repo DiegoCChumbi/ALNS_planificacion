@@ -71,7 +71,7 @@ public class SimuladorCincoDias {
                 double horaReloj = (7.0 + (t - 1) * 8.0) % 24.0;
 
                 // Generar nuevos pedidos de este turno
-                int pedidosEsteTurno = pedidosPorTurnoPromedio - 3 + rand.nextInt(7);
+                int pedidosEsteTurno = pedidosPorTurnoPromedio;
                 for (int p = 0; p < pedidosEsteTurno; p++) {
                     int x = rand.nextInt(config.getEntorno().getAnchoMapa() + 1);
                     int y = rand.nextInt(config.getEntorno().getAltoMapa() + 1);

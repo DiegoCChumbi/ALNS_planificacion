@@ -26,7 +26,7 @@ public class VerificadorRestricciones {
         // Verificación de ventana de tiempo, refrigerio obligatorio y jornada laboral
         double tiempoActual = ev.getMarcaTiempoActual();
         NodoCuadricula posActual = ev.getUbicacionActual();
-        double inicioTurno = 0.0;
+        double inicioTurno = ev.getTiempoInicioTurno();
         double duracionTurno = operacion.getDuracionTurnoHoras();
         double finTurno = inicioTurno + duracionTurno;
         double tiempoServicio = operacion.getTiempoServicioClienteHoras();
@@ -36,10 +36,11 @@ public class VerificadorRestricciones {
         // Ventana legal de refrigerio: al menos una hora después del inicio y una hora antes del cambio de turno
         double ventanaMinRefrigerio = inicioTurno + margenRefrigerio;
         double ventanaMaxRefrigerio = finTurno - margenRefrigerio;
-        double tiempoInicioRefrigerioIdeal = duracionTurno / 2.0;
+        double tiempoInicioRefrigerioIdeal = inicioTurno + duracionTurno / 2.0;
         boolean refrigerioTomado = ev.isRefrigerioTomado();
 
         for (Pedido pedido : pedidos) {
+            tiempoActual = Math.max(tiempoActual, pedido.getTiempoLiberacion());
             // Pausa obligatoria de alimentación si se alcanza la mitad del turno
             if (!refrigerioTomado && tiempoActual >= tiempoInicioRefrigerioIdeal) {
                 if (tiempoActual < ventanaMinRefrigerio || (tiempoActual + duracionRefrigerio) > ventanaMaxRefrigerio) {
@@ -49,7 +50,8 @@ public class VerificadorRestricciones {
                 refrigerioTomado = true;
             }
 
-            double tiempoViaje = CalculadorDistancia.getTiempoViajeHoras(mapa, posActual, pedido.getDestino(), tv);
+            double tiempoViaje = CalculadorDistancia.getDistancia(mapa, posActual, pedido.getDestino(), tiempoActual)
+                    / tv.getVelocidadKmH();
             double tiempoLlegada = tiempoActual + tiempoViaje;
 
             // Verificar plazo límite del cliente
@@ -79,7 +81,7 @@ public class VerificadorRestricciones {
                 refrigerioTomado = true;
             }
 
-            double distRetorno = CalculadorDistancia.getDistancia(mapa, posActual, ev.getAlmacenBase());
+            double distRetorno = CalculadorDistancia.getDistancia(mapa, posActual, ev.getAlmacenBase(), tiempoActual);
             double tiempoViajeRetorno = distRetorno / tv.getVelocidadKmH();
             double tiempoLlegadaAlmacen = tiempoActual + tiempoViajeRetorno;
 

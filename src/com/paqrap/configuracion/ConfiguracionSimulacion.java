@@ -5,6 +5,7 @@ public class ConfiguracionSimulacion {
     private String archivoLogTexto = "simulacion_movimientos.log";
     private String archivoLogJson = "simulacion_movimientos.json";
     private boolean imprimirEnConsola = false;
+    private int pedidosPorTurnoMultidiario = 18;
 
     public String getDirectorioLogs() { return directorioLogs; }
     public void setDirectorioLogs(String directorioLogs) { this.directorioLogs = directorioLogs; }
@@ -17,4 +18,9 @@ public class ConfiguracionSimulacion {
 
     public boolean isImprimirEnConsola() { return imprimirEnConsola; }
     public void setImprimirEnConsola(boolean imprimirEnConsola) { this.imprimirEnConsola = imprimirEnConsola; }
+
+    public int getPedidosPorTurnoMultidiario() { return pedidosPorTurnoMultidiario; }
+    public void setPedidosPorTurnoMultidiario(int pedidosPorTurnoMultidiario) {
+        this.pedidosPorTurnoMultidiario = pedidosPorTurnoMultidiario;
+    }
 }

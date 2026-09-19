@@ -1,6 +1,7 @@
 package com.paqrap.configuracion;
 
 import com.paqrap.modelo.*;
+import com.paqrap.entrada.RegistroEntradas;
 import com.paqrap.solucionador.ConfiguracionALNS;
 import java.io.*;
 import java.util.*;
@@ -135,6 +136,8 @@ public class ConfiguracionSistema {
             config.simulacion.setArchivoLogTexto(LectorJson.getString(mSim, "archivoLogTexto", "simulacion_movimientos.log"));
             config.simulacion.setArchivoLogJson(LectorJson.getString(mSim, "archivoLogJson", "simulacion_movimientos.json"));
             config.simulacion.setImprimirEnConsola(LectorJson.getBoolean(mSim, "imprimirEnConsola", false));
+            config.simulacion.setPedidosPorTurnoMultidiario(
+                    LectorJson.getInt(mSim, "pedidosPorTurnoMultidiario", 18));
         }
 
         // 9. Pedidos Iniciales
@@ -171,6 +174,20 @@ public class ConfiguracionSistema {
 
     public MapaCuadricula construirMapa() {
         return new MapaCuadricula(entorno.getAnchoMapa(), entorno.getAltoMapa());
+    }
+
+    /**
+     * Construye un mapa compatible con la configuración y con todas las coordenadas
+     * registradas en las entradas externas.
+     */
+    public MapaCuadricula construirMapa(RegistroEntradas entradas) {
+        int ancho = entorno.getAnchoMapa();
+        int alto = entorno.getAltoMapa();
+        if (entradas != null) {
+            ancho = Math.max(ancho, entradas.getMaximaX() + 1);
+            alto = Math.max(alto, entradas.getMaximaY() + 1);
+        }
+        return new MapaCuadricula(ancho, alto);
     }
 
     public ContextoProblema construirContextoInicial(MapaCuadricula mapa) {

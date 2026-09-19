@@ -22,20 +22,21 @@ public class EvaluadorCostos {
         double tiempoServicio = (operacion != null) ? operacion.getTiempoServicioClienteHoras() : 1.0;
         double duracionRefrigerio = (operacion != null) ? operacion.getDuracionRefrigerioHoras() : 1.0;
         double duracionTurno = (operacion != null) ? operacion.getDuracionTurnoHoras() : 8.0;
-        double tiempoInicioRefrigerio = duracionTurno / 2.0;
+        double tiempoInicioRefrigerio = ev.getTiempoInicioTurno() + duracionTurno / 2.0;
         boolean refrigerioTomado = ev.isRefrigerioTomado();
 
         camino.add(posActual);
         llegadas.add(tiempoActual);
 
         for (Pedido pedido : pedidos) {
+            tiempoActual = Math.max(tiempoActual, pedido.getTiempoLiberacion());
             // Si corresponde refrigerio antes de iniciar el siguiente tramo
             if (!refrigerioTomado && tiempoActual >= tiempoInicioRefrigerio) {
                 tiempoActual += duracionRefrigerio;
                 refrigerioTomado = true;
             }
 
-            double dist = CalculadorDistancia.getDistancia(mapa, posActual, pedido.getDestino());
+            double dist = CalculadorDistancia.getDistancia(mapa, posActual, pedido.getDestino(), tiempoActual);
             double tiempoViaje = dist / tv.getVelocidadKmH();
             double tiempoLlegada = tiempoActual + tiempoViaje;
 
@@ -54,7 +55,7 @@ public class EvaluadorCostos {
                 refrigerioTomado = true;
             }
 
-            double distRetorno = CalculadorDistancia.getDistancia(mapa, posActual, ev.getAlmacenBase());
+            double distRetorno = CalculadorDistancia.getDistancia(mapa, posActual, ev.getAlmacenBase(), tiempoActual);
             double tiempoViajeRetorno = distRetorno / tv.getVelocidadKmH();
             double tiempoLlegadaBase = tiempoActual + tiempoViajeRetorno;
 
